@@ -5,7 +5,6 @@ const crypto = require("crypto");
 const DEFAULT_INITIAL_RATING = 1500;
 const MIN_RATING_FOR_SEARCH = -10000;
 const MAX_RATING_FOR_SEARCH = 10000;
-const SEARCH_STEPS = 32;
 
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
@@ -122,33 +121,69 @@ function parseContestTimestamp(contest) {
   return Number.isFinite(ts) ? ts : Number.MAX_SAFE_INTEGER;
 }
 
-function probabilityOpponentBeatsPlayer(playerRating, opponentRating) {
-  return 1 / (1 + Math.pow(10, (playerRating - opponentRating) / 400));
-}
-
-function seedForRating(rating, ratings) {
-  let seed = 1;
-  for (const otherRating of ratings) {
-    seed += probabilityOpponentBeatsPlayer(rating, otherRating);
+function buildSeedModel(rows) {
+  const ratingCountMap = new Map();
+  for (const row of rows) {
+    const count = ratingCountMap.get(row.rating) || 0;
+    ratingCountMap.set(row.rating, count + 1);
   }
-  return seed;
+
+  const uniqueRatings = [...ratingCountMap.keys()];
+  const uniqueCounts = uniqueRatings.map((rating) => ratingCountMap.get(rating));
+
+  const probabilityByDiff = new Map();
+  const seedByRating = new Map();
+
+  function probabilityByDifference(diff) {
+    let value = probabilityByDiff.get(diff);
+    if (value !== undefined) {
+      return value;
+    }
+    value = 1 / (1 + Math.pow(10, diff / 400));
+    probabilityByDiff.set(diff, value);
+    return value;
+  }
+
+  function seedWithPopulation(queryRating) {
+    let cached = seedByRating.get(queryRating);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    let seed = 1;
+    for (let i = 0; i < uniqueRatings.length; i += 1) {
+      const opponentRating = uniqueRatings[i];
+      const count = uniqueCounts[i];
+      seed += count * probabilityByDifference(queryRating - opponentRating);
+    }
+
+    seedByRating.set(queryRating, seed);
+    return seed;
+  }
+
+  return {
+    seedWithPopulation,
+    seedWithoutSelf(playerRating) {
+      return seedWithPopulation(playerRating) - probabilityByDifference(playerRating - playerRating);
+    },
+  };
 }
 
-function findRatingForSeed(targetSeed, ratings) {
-  let low = MIN_RATING_FOR_SEARCH;
-  let high = MAX_RATING_FOR_SEARCH;
+function findRatingForSeed(targetSeed, seedModel) {
+  let left = MIN_RATING_FOR_SEARCH;
+  let right = MAX_RATING_FOR_SEARCH;
 
-  for (let i = 0; i < SEARCH_STEPS; i += 1) {
-    const middle = (low + high) / 2;
-    const middleSeed = seedForRating(middle, ratings);
+  while (right - left > 1) {
+    const middle = (left + right) >> 1;
+    const middleSeed = seedModel.seedWithPopulation(middle);
     if (middleSeed > targetSeed) {
-      low = middle;
+      left = middle;
     } else {
-      high = middle;
+      right = middle;
     }
   }
 
-  return Math.trunc(low);
+  return left;
 }
 
 function applyCodeforcesUpdate(participants, getRating) {
@@ -164,19 +199,14 @@ function applyCodeforcesUpdate(participants, getRating) {
     return rows;
   }
 
-  for (let i = 0; i < rows.length; i += 1) {
-    let seed = 1;
-    for (let j = 0; j < rows.length; j += 1) {
-      if (i === j) continue;
-      seed += probabilityOpponentBeatsPlayer(rows[i].rating, rows[j].rating);
-    }
-    rows[i].seed = seed;
+  const seedModel = buildSeedModel(rows);
+  for (const row of rows) {
+    row.seed = seedModel.seedWithoutSelf(row.rating);
   }
 
-  const ratings = rows.map((row) => row.rating);
   for (const row of rows) {
     const middleRank = Math.sqrt(row.rank * row.seed);
-    const neededRating = findRatingForSeed(middleRank, ratings);
+    const neededRating = findRatingForSeed(middleRank, seedModel);
     row.delta = Math.trunc((neededRating - row.rating) / 2);
   }
 
@@ -434,4 +464,3 @@ try {
   console.error(error && error.message ? error.message : String(error));
   process.exit(1);
 }
-

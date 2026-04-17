@@ -18,7 +18,8 @@
 body {
   margin: 0;
   color: var(--ink);
-  background: radial-gradient(circle at 12% 8%, #d8ede7 0%, transparent 34%),
+  background:
+    radial-gradient(circle at 12% 8%, #d8ede7 0%, transparent 34%),
     radial-gradient(circle at 88% 16%, #ffe9cc 0%, transparent 26%),
     linear-gradient(165deg, #f2f5ef 0%, #edf4ef 46%, #f8f6ef 100%);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
@@ -33,13 +34,15 @@ body {
 }
 
 .backdrop {
-  background: radial-gradient(ellipse at 30% 88%, rgba(0, 127, 115, 0.12), transparent 40%),
+  background:
+    radial-gradient(ellipse at 30% 88%, rgba(0, 127, 115, 0.12), transparent 40%),
     radial-gradient(ellipse at 80% 70%, rgba(219, 122, 13, 0.14), transparent 36%);
   z-index: -2;
 }
 
 .backdrop-grid {
-  background-image: linear-gradient(transparent 31px, rgba(16, 33, 39, 0.035) 32px),
+  background-image:
+    linear-gradient(transparent 31px, rgba(16, 33, 39, 0.035) 32px),
     linear-gradient(90deg, transparent 31px, rgba(16, 33, 39, 0.03) 32px);
   background-size: 32px 32px;
   z-index: -1;
@@ -52,6 +55,7 @@ body {
 }
 
 .panel {
+  margin: 6px;
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--surface);
@@ -91,11 +95,10 @@ h1 {
   font-size: 0.94rem;
 }
 
-.summary {
-  margin-top: 14px;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+#playerOrganization {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 0.95rem;
 }
 
 .card {
@@ -117,10 +120,8 @@ h1 {
 }
 
 .content-grid {
-  margin-top: 14px;
   display: grid;
-  grid-template-columns: 1.12fr 1fr;
-  gap: 12px;
+  grid-template-columns: 50% 50%;
 }
 
 .leaderboard,
@@ -131,7 +132,6 @@ h1 {
 
 .panel-head {
   display: flex;
-  justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
 }
@@ -188,17 +188,17 @@ input {
 
 .table-wrap {
   margin-top: 12px;
-  max-height: 60vh;
-  overflow: auto;
+  overflow: hidden auto;
   border: 1px solid #c8d3cd;
   border-radius: 12px;
   background: #ffffffbd;
 }
 
 table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
-  table-layout: fixed;
+  table-layout: auto;
 }
 
 thead th {
@@ -218,13 +218,17 @@ td {
   text-align: left;
   vertical-align: top;
   font-size: 0.9rem;
+  white-space: nowrap;
 }
 
 tbody tr {
-  transition: transform 120ms ease, background-color 120ms ease;
+  transition:
+    transform 120ms ease,
+    background-color 120ms ease;
 }
 
 tbody tr:hover {
+  cursor: pointer;
   background: #ebf6f2;
 }
 
@@ -294,10 +298,6 @@ tbody tr.active {
 }
 
 @media (max-width: 1120px) {
-  .summary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .content-grid {
     grid-template-columns: 1fr;
   }
@@ -326,10 +326,6 @@ tbody tr.active {
   .layout {
     width: min(96vw, 96vw);
     padding-top: 12px;
-  }
-
-  .summary {
-    grid-template-columns: 1fr;
   }
 
   th,

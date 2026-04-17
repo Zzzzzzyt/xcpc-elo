@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>XCPC Teammate Elo Dashboard</title>
+    <title>XCPC ELO</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -12,42 +12,38 @@
 
     <main class="layout">
       <header class="hero panel">
-        <p class="eyebrow">XCPC teammate skill trend</p>
-        <h1>Codeforces-style Elo Ranking</h1>
-        <p id="subtitle">Loading dataset...</p>
+        <h1>XCPC ELO</h1>
+        <p id="subtitle">正在加载数据...</p>
       </header>
-
-      <section id="summaryCards" class="summary"></section>
 
       <section class="content-grid">
         <section class="panel leaderboard">
           <div class="panel-head">
-            <h2>Ranking</h2>
             <div class="controls">
-              <input id="searchInput" type="search" placeholder="Search by name / organization / id..." />
+              <input id="searchInput" type="search" placeholder="按姓名 / 学校 / ID 搜索..." />
               <select id="sortSelect">
-                <option value="current">Sort: Current Rating</option>
-                <option value="top">Sort: Historical Top Rating</option>
-                <option value="contests">Sort: Contest Count</option>
+                <option value="current">排序：当前分</option>
+                <option value="top">排序：历史最高分</option>
+                <option value="contests">排序：参赛次数</option>
               </select>
               <div class="date-filter-group">
-                <label for="lastCompetedSinceInput">Last competed no earlier than</label>
+                <label for="lastCompetedSinceInput">最后参赛不早于</label>
                 <input id="lastCompetedSinceInput" type="date" />
-                <button id="clearLastCompetedFilterButton" type="button">Clear</button>
+                <button id="clearLastCompetedFilterButton" type="button">清除筛选</button>
               </div>
             </div>
           </div>
-          <div class="table-wrap">
+          <div class="table-wrap" style="max-height: 65vh;">
             <table>
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Teammate</th>
-                  <th>Organization</th>
-                  <th>Current</th>
-                  <th>Top</th>
-                  <th>Delta</th>
-                  <th>Contests</th>
+                  <th>队员</th>
+                  <th>学校</th>
+                  <th>当前分</th>
+                  <th>历史最高</th>
+                  <th>&Delta;</th>
+                  <th>参赛次数</th>
                 </tr>
               </thead>
               <tbody id="leaderboardBody"></tbody>
@@ -58,21 +54,22 @@
 
         <section class="panel player-detail">
           <div class="panel-head">
-            <h2 id="playerName">Player Details</h2>
-            <p id="playerMeta"></p>
+            <h2 id="playerName">选手详情</h2>
+            <p id="playerOrganization"></p>
           </div>
+          <p id="playerMeta"></p>
           <div class="chart-wrap">
             <div id="ratingChart"></div>
           </div>
-          <div class="table-wrap">
+          <div class="table-wrap" style="max-height: 40vh;">
             <table>
               <thead>
                 <tr>
-                  <th>Contest</th>
-                  <th>Date</th>
-                  <th>Rank</th>
-                  <th>Delta</th>
-                  <th>Rating</th>
+                  <th>比赛</th>
+                  <th>日期</th>
+                  <th>名次</th>
+                  <th>&Delta;</th>
+                  <th>分数</th>
                 </tr>
               </thead>
               <tbody id="historyBody"></tbody>
@@ -87,4 +84,4 @@
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     <script src="./app.js"></script>
   </body>
- </html>
+</html>
