@@ -31,12 +31,26 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - name: Install dependencies
+        run: npm ci
+      - name: Build ranklists and frontend
+        run: |
+          npm run compute:static-ranklists
+          npm run build:teammate-map
+          npm run build:elo-dashboard
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './frontend'
+          path: './out/frontend'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
