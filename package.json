@@ -1,0 +1,23 @@
+{
+  "name": "xcpc-elo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build:teammate-map": "node scripts/build-teammate-map.cjs",
+    "compute:static-ranklists": "node scripts/compute-static-ranklists.cjs",
+    "compute:teammate-elo": "node scripts/compute-teammate-elo.cjs",
+    "build:elo-frontend": "node scripts/build-elo-frontend.cjs",
+    "build:elo-dashboard": "npm run compute:teammate-elo && npm run build:elo-frontend",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@algoux/standard-ranklist": "^0.3.12",
+    "@algoux/standard-ranklist-utils": "^0.2.12",
+    "js-yaml": "^4.1.1"
+  }
+}

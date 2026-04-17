@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>XCPC Teammate Elo Dashboard</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="backdrop"></div>
+    <div class="backdrop-grid"></div>
+
+    <main class="layout">
+      <header class="hero panel">
+        <p class="eyebrow">XCPC teammate skill trend</p>
+        <h1>Codeforces-style Elo Ranking</h1>
+        <p id="subtitle">Loading dataset...</p>
+      </header>
+
+      <section id="summaryCards" class="summary"></section>
+
+      <section class="content-grid">
+        <section class="panel leaderboard">
+          <div class="panel-head">
+            <h2>Ranking</h2>
+            <div class="controls">
+              <input id="searchInput" type="search" placeholder="Search by name / organization / id..." />
+              <select id="sortSelect">
+                <option value="current">Sort: Current Rating</option>
+                <option value="top">Sort: Historical Top Rating</option>
+                <option value="contests">Sort: Contest Count</option>
+              </select>
+              <div class="date-filter-group">
+                <label for="lastCompetedSinceInput">Last competed no earlier than</label>
+                <input id="lastCompetedSinceInput" type="date" />
+                <button id="clearLastCompetedFilterButton" type="button">Clear</button>
+              </div>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Teammate</th>
+                  <th>Organization</th>
+                  <th>Current</th>
+                  <th>Top</th>
+                  <th>Delta</th>
+                  <th>Contests</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboardBody"></tbody>
+            </table>
+          </div>
+          <p id="leaderboardHint" class="hint"></p>
+        </section>
+
+        <section class="panel player-detail">
+          <div class="panel-head">
+            <h2 id="playerName">Player Details</h2>
+            <p id="playerMeta"></p>
+          </div>
+          <div class="chart-wrap">
+            <div id="ratingChart"></div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Contest</th>
+                  <th>Date</th>
+                  <th>Rank</th>
+                  <th>Delta</th>
+                  <th>Rating</th>
+                </tr>
+              </thead>
+              <tbody id="historyBody"></tbody>
+            </table>
+          </div>
+          <p id="historyHint" class="hint"></p>
+        </section>
+      </section>
+    </main>
+
+    <script src="./data.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <script src="./app.js"></script>
+  </body>
+ </html>

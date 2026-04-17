@@ -1,0 +1,3 @@
+[submodule "data/srk-collection"]
+	path = data/srk-collection
+	url = https://github.com/algoux/srk-collection.git
