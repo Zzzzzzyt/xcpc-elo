@@ -1,6 +1,8 @@
 # xcpc-elo
 
-Utilities to compute static ranklists from the srk-collection dataset.
+Pipeline utilities for building an XCPC teammate Elo dashboard from:
+- `data/srk-collection` ranklists
+- CPCFinder contest/awards data
 
 ## Setup
 
@@ -8,53 +10,64 @@ Utilities to compute static ranklists from the srk-collection dataset.
 npm install
 ```
 
-## Generate static ranklists
+## Canonical Workflow
 
 ```bash
-npm run compute:static-ranklists
+npm run workflow:elo-dashboard
 ```
 
-Generated files are written to `out/static-ranklists`.
+This runs the full workflow in order:
 
-## Build teammate identity map
+1. SRK source -> static ranklists  
+   `npm run step:1:static-ranklists`
+2. Crawl CPCFinder  
+   `npm run step:2:cpcfinder-crawl`
+3. Build CPCFinder -> SRK contest mapping  
+   `npm run step:3:cpcfinder-srk-map`
+4. Substitute CPCFinder teammate data into static ranklists  
+   `npm run step:4:substitute-static-ranklists`
+5. Extract teammate-organization map (after substitution)  
+   `npm run step:5:teammate-org-map`
+6. Compute Elo  
+   `npm run step:6:compute-elo`
+7. Build frontend assets  
+   `npm run step:7:build-frontend`
 
-```bash
-npm run build:teammate-map
-```
+`npm run build:elo-dashboard` is an alias of `workflow:elo-dashboard`.
 
-Generated file: `out/teammate-map.json`.
+## Key Outputs
 
-## Compute teammate Elo (Codeforces-style)
+- Static ranklists: `out/static-ranklists/*.static.srk.json`
+- Static generation summary: `out/static-ranklists/_summary.json`
+- Static invalid teammate report: `out/static-ranklists/_invalid-teammates.json`
+- Substitution report: `out/static-ranklists/_substitution.json`
+- Teammate map: `out/teammate-map.json`
+- CPCFinder crawl index: `out/cpcfinder/index.json`
+- CPCFinder contest mapping:
+  - `out/cpcfinder/contest-map.success.json`
+  - `out/cpcfinder/contest-map.unmatched.json`
+  - `out/cpcfinder/contest-map.summary.json`
+- Elo data: `out/teammate-elo.json`
+- Frontend:
+  - `out/frontend/index.html`
+  - `out/frontend/styles.css`
+  - `out/frontend/app.js`
+  - `out/frontend/data.js`
 
-```bash
-npm run compute:teammate-elo
-```
+## Manual Mapping Overrides (Optional)
 
-This reads:
-- `out/static-ranklists/*.static.srk.json`
-- `out/teammate-map.json`
+If some CPCFinder contests cannot be auto-mapped, add overrides in:
 
-Output:
-- `out/teammate-elo.json`
+`out/cpcfinder/contest-map.manual.json`
 
-Rating rule used for each contest:
-- Team rank is `rows` index (1-based).
-- Every teammate in the team receives the same contest rank and rating delta.
+Format:
 
-## Build frontend dashboard
-
-```bash
-npm run build:elo-frontend
-```
-
-Output:
-- `out/frontend/index.html`
-- `out/frontend/styles.css`
-- `out/frontend/app.js`
-- `out/frontend/data.js`
-
-You can also run everything in sequence:
-
-```bash
-npm run build:elo-dashboard
+```json
+[
+  {
+    "contestId": 50,
+    "srkUniqueKey": "icpc2021macau",
+    "note": "manual mapping"
+  }
+]
 ```

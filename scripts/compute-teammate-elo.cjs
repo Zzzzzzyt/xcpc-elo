@@ -1,37 +1,16 @@
-const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const { applyCodeforcesUpdate, parseContestTimestamp, ratingTitle } = require("./lib/elo-core.cjs");
+const {
+  assessParticipantNames,
+  collectStaticRanklistFiles,
+  normalize,
+  readJson,
+  resolveText,
+  writeJson,
+} = require("./lib/ranklist-utils.cjs");
 
 const DEFAULT_INITIAL_RATING = 1500;
-const MIN_RATING_FOR_SEARCH = -10000;
-const MAX_RATING_FOR_SEARCH = 10000;
-
-function ensureDir(dirPath) {
-  fs.mkdirSync(dirPath, { recursive: true });
-}
-
-function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, "utf8"));
-}
-
-function writeJson(filePath, value) {
-  ensureDir(path.dirname(filePath));
-  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-}
-
-function resolveText(value) {
-  if (typeof value === "string") {
-    return value;
-  }
-  if (!value || typeof value !== "object") {
-    return "";
-  }
-  return value["zh-CN"] || value.en || value.fallback || Object.values(value).find((v) => typeof v === "string") || "";
-}
-
-function normalize(value) {
-  return `${value || ""}`.trim().replace(/\s+/g, " ");
-}
 
 function pairKey(organization, teamMember) {
   return `${organization}\u0001${teamMember}`;
@@ -43,27 +22,6 @@ function pairHashId(organization, teamMember) {
   const raw = `${orgNorm}\u0001${memberNorm}`;
   const digest = crypto.createHash("sha256").update(raw, "utf8").digest("hex");
   return `xcpc_${digest.slice(0, 16)}`;
-}
-
-function collectStaticRanklistFiles(rootDir) {
-  const files = [];
-
-  function walk(dir) {
-    const children = fs.readdirSync(dir, { withFileTypes: true });
-    for (const child of children) {
-      const fullPath = path.join(dir, child.name);
-      if (child.isDirectory()) {
-        walk(fullPath);
-        continue;
-      }
-      if (child.isFile() && child.name.endsWith(".static.srk.json")) {
-        files.push(fullPath);
-      }
-    }
-  }
-
-  walk(rootDir);
-  return files;
 }
 
 function buildTeammateIndex(teammateMap) {
@@ -81,7 +39,13 @@ function buildTeammateIndex(teammateMap) {
     }
 
     const key = pairKey(organization, teamMember);
-    byId.set(id, { id, organization, teamMember, appearances: entry.appearances || 0 });
+    byId.set(id, {
+      id,
+      organization,
+      teamMember,
+      appearances: entry.appearances || 0,
+      fromMap: true,
+    });
     byPair.set(key, id);
     byPairLower.set(key.toLowerCase(), id);
   }
@@ -107,141 +71,22 @@ function resolveTeammateId(organization, teamMember, teammateIndex) {
     return lower;
   }
 
-  const hashId = pairHashId(org, member);
-  if (teammateIndex.byId.has(hashId)) {
-    return hashId;
+  const id = pairHashId(org, member);
+  if (!teammateIndex.byId.has(id)) {
+    teammateIndex.byId.set(id, {
+      id,
+      organization: org,
+      teamMember: member,
+      appearances: 0,
+      fromMap: false,
+    });
   }
-
-  return null;
+  teammateIndex.byPair.set(key, id);
+  teammateIndex.byPairLower.set(key.toLowerCase(), id);
+  return id;
 }
 
-function parseContestTimestamp(contest) {
-  const startAt = contest && contest.startAt ? contest.startAt : null;
-  const ts = startAt ? Date.parse(startAt) : Number.NaN;
-  return Number.isFinite(ts) ? ts : Number.MAX_SAFE_INTEGER;
-}
-
-function buildSeedModel(rows) {
-  const ratingCountMap = new Map();
-  for (const row of rows) {
-    const count = ratingCountMap.get(row.rating) || 0;
-    ratingCountMap.set(row.rating, count + 1);
-  }
-
-  const uniqueRatings = [...ratingCountMap.keys()];
-  const uniqueCounts = uniqueRatings.map((rating) => ratingCountMap.get(rating));
-
-  const probabilityByDiff = new Map();
-  const seedByRating = new Map();
-
-  function probabilityByDifference(diff) {
-    let value = probabilityByDiff.get(diff);
-    if (value !== undefined) {
-      return value;
-    }
-    value = 1 / (1 + Math.pow(10, diff / 400));
-    probabilityByDiff.set(diff, value);
-    return value;
-  }
-
-  function seedWithPopulation(queryRating) {
-    let cached = seedByRating.get(queryRating);
-    if (cached !== undefined) {
-      return cached;
-    }
-
-    let seed = 1;
-    for (let i = 0; i < uniqueRatings.length; i += 1) {
-      const opponentRating = uniqueRatings[i];
-      const count = uniqueCounts[i];
-      seed += count * probabilityByDifference(queryRating - opponentRating);
-    }
-
-    seedByRating.set(queryRating, seed);
-    return seed;
-  }
-
-  return {
-    seedWithPopulation,
-    seedWithoutSelf(playerRating) {
-      return seedWithPopulation(playerRating) - probabilityByDifference(playerRating - playerRating);
-    },
-  };
-}
-
-function findRatingForSeed(targetSeed, seedModel) {
-  let left = MIN_RATING_FOR_SEARCH;
-  let right = MAX_RATING_FOR_SEARCH;
-
-  while (right - left > 1) {
-    const middle = (left + right) >> 1;
-    const middleSeed = seedModel.seedWithPopulation(middle);
-    if (middleSeed > targetSeed) {
-      left = middle;
-    } else {
-      right = middle;
-    }
-  }
-
-  return left;
-}
-
-function applyCodeforcesUpdate(participants, getRating) {
-  const rows = participants.map((participant) => ({
-    id: participant.id,
-    rank: participant.rank,
-    rating: getRating(participant.id),
-    seed: 1,
-    delta: 0,
-  }));
-
-  if (rows.length < 2) {
-    return rows;
-  }
-
-  const seedModel = buildSeedModel(rows);
-  for (const row of rows) {
-    row.seed = seedModel.seedWithoutSelf(row.rating);
-  }
-
-  for (const row of rows) {
-    const middleRank = Math.sqrt(row.rank * row.seed);
-    const neededRating = findRatingForSeed(middleRank, seedModel);
-    row.delta = Math.trunc((neededRating - row.rating) / 2);
-  }
-
-  const sumDelta = rows.reduce((acc, row) => acc + row.delta, 0);
-  const inc1 = Math.trunc((-sumDelta) / rows.length) - 1;
-  for (const row of rows) {
-    row.delta += inc1;
-  }
-
-  const topCount = Math.min(rows.length, Math.floor(4 * Math.sqrt(rows.length)) + 1);
-  const byRating = [...rows].sort((a, b) => b.rating - a.rating || a.rank - b.rank || a.id.localeCompare(b.id));
-  const sumTop = byRating.slice(0, topCount).reduce((acc, row) => acc + row.delta, 0);
-  let inc2 = Math.trunc((-sumTop) / topCount);
-  inc2 = Math.max(-10, Math.min(0, inc2));
-  for (const row of rows) {
-    row.delta += inc2;
-  }
-
-  return rows;
-}
-
-function ratingTitle(rating) {
-  if (rating < 1200) return "newbie";
-  if (rating < 1400) return "pupil";
-  if (rating < 1600) return "specialist";
-  if (rating < 1900) return "expert";
-  if (rating < 2100) return "candidate master";
-  if (rating < 2300) return "master";
-  if (rating < 2400) return "international master";
-  if (rating < 2600) return "grandmaster";
-  if (rating < 3000) return "international grandmaster";
-  return "legendary grandmaster";
-}
-
-function buildContestParticipants(ranklist, contestKey, teammateIndex, unmatchedByPair) {
+function buildContestParticipants(ranklist, contestKey, teammateIndex, unresolvedEntries) {
   const rows = Array.isArray(ranklist && ranklist.rows) ? ranklist.rows : [];
   const rankById = new Map();
 
@@ -252,6 +97,11 @@ function buildContestParticipants(ranklist, contestKey, teammateIndex, unmatched
     const organization = normalize(resolveText(user.organization));
     const teamMembers = Array.isArray(user.teamMembers) ? user.teamMembers : [];
     if (!organization || !teamMembers.length) {
+      unresolvedEntries.push({
+        contestKey,
+        rank,
+        reason: !organization ? "missing-organization" : "missing-team-members",
+      });
       continue;
     }
 
@@ -259,26 +109,25 @@ function buildContestParticipants(ranklist, contestKey, teammateIndex, unmatched
     for (const member of teamMembers) {
       const teamMember = normalize(resolveText(member && member.name));
       if (!teamMember) {
+        unresolvedEntries.push({
+          contestKey,
+          rank,
+          reason: "empty-member-name",
+        });
         continue;
       }
 
       const id = resolveTeammateId(organization, teamMember, teammateIndex);
       if (!id) {
-        const key = pairKey(organization, teamMember);
-        if (!unmatchedByPair.has(key)) {
-          unmatchedByPair.set(key, {
-            organization,
-            teamMember,
-            count: 0,
-            contests: new Set(),
-          });
-        }
-        const item = unmatchedByPair.get(key);
-        item.count += 1;
-        item.contests.add(contestKey);
+        unresolvedEntries.push({
+          contestKey,
+          rank,
+          reason: "unresolvable-member",
+          organization,
+          teamMember,
+        });
         continue;
       }
-
       rowIds.add(id);
     }
 
@@ -298,24 +147,37 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
   const teammateMap = readJson(teammateMapFile);
   const teammateIndex = buildTeammateIndex(teammateMap);
   const staticFiles = collectStaticRanklistFiles(staticRootDir);
-  const unmatchedByPair = new Map();
 
-  const contests = staticFiles.map((filePath) => {
+  const unresolvedEntries = [];
+  const skippedInvalidContests = [];
+  const contests = [];
+
+  for (const filePath of staticFiles) {
     const ranklist = readJson(filePath);
     const contestKey = path.basename(filePath, ".static.srk.json");
     const contest = ranklist && ranklist.contest ? ranklist.contest : {};
     const title = resolveText(contest.title) || contestKey;
-    const participants = buildContestParticipants(ranklist, contestKey, teammateIndex, unmatchedByPair);
 
-    return {
+    const nameCheck = assessParticipantNames(ranklist);
+    if (nameCheck.invalid) {
+      skippedInvalidContests.push({
+        key: contestKey,
+        file: path.relative(staticRootDir, filePath).replace(/\\/g, "/"),
+        detail: nameCheck.detail,
+      });
+      continue;
+    }
+
+    const participants = buildContestParticipants(ranklist, contestKey, teammateIndex, unresolvedEntries);
+    contests.push({
       key: contestKey,
       file: path.relative(staticRootDir, filePath).replace(/\\/g, "/"),
-      startAt: contest.startAt || null,
       title,
+      startAt: contest.startAt || null,
       timestamp: parseContestTimestamp(contest),
       participants,
-    };
-  });
+    });
+  }
 
   contests.sort((a, b) => a.timestamp - b.timestamp || a.key.localeCompare(b.key));
   contests.forEach((contest, index) => {
@@ -342,11 +204,12 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
   for (const contest of contests) {
     const updates = applyCodeforcesUpdate(contest.participants, (id) => {
       if (!playerStates.has(id)) {
+        const indexEntry = teammateIndex.byId.get(id) || {};
         playerStates.set(id, {
           id,
-          organization: "",
-          teamMember: "",
-          mapAppearances: 0,
+          organization: normalize(indexEntry.organization),
+          teamMember: normalize(indexEntry.teamMember),
+          mapAppearances: indexEntry.appearances || 0,
           rating: initialRating,
           maxRating: initialRating,
           minRating: initialRating,
@@ -391,21 +254,22 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
     players[index].rank = index + 1;
   }
 
-  const unmatchedPairs = [...unmatchedByPair.values()]
-    .map((item) => ({
-      organization: item.organization,
-      teamMember: item.teamMember,
-      count: item.count,
-      contests: [...item.contests].sort(),
-    }))
-    .sort((a, b) => b.count - a.count || a.organization.localeCompare(b.organization) || a.teamMember.localeCompare(b.teamMember));
+  const unresolvedCounts = new Map();
+  for (const item of unresolvedEntries) {
+    unresolvedCounts.set(item.reason, (unresolvedCounts.get(item.reason) || 0) + 1);
+  }
+  const unresolvedSummary = [...unresolvedCounts.entries()]
+    .map(([reason, count]) => ({ reason, count }))
+    .sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason));
 
   const output = {
     generatedAt: new Date().toISOString(),
     source: {
       staticRootDir,
       teammateMapFile,
-      totalStaticRanklists: contests.length,
+      totalStaticRanklists: staticFiles.length,
+      usedContests: contests.length,
+      skippedInvalidContests: skippedInvalidContests.length,
       totalMappedTeammates: teammateIndex.byId.size,
     },
     config: {
@@ -417,7 +281,7 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
       contests: contests.length,
       players: players.length,
       ratingEvents: totalRatingEvents,
-      unmatchedPairs: unmatchedPairs.length,
+      unresolvedEntries: unresolvedEntries.length,
     },
     contests: contests.map((contest) => ({
       index: contest.index,
@@ -428,7 +292,8 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
       participantCount: contest.participants.length,
     })),
     players,
-    unmatchedPairs,
+    skippedInvalidContests,
+    unresolvedSummary,
   };
 
   writeJson(outputFile, output);
@@ -442,19 +307,11 @@ function main() {
   const initialRatingArg = Number.parseInt(process.argv[5] || "", 10);
   const initialRating = Number.isFinite(initialRatingArg) ? initialRatingArg : DEFAULT_INITIAL_RATING;
 
-  if (!fs.existsSync(staticRootDir)) {
-    throw new Error(`Static ranklist directory does not exist: ${staticRootDir}`);
-  }
-  if (!fs.existsSync(teammateMapFile)) {
-    throw new Error(`Teammate map does not exist: ${teammateMapFile}`);
-  }
-
   const result = buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRating);
-
-  console.log(`Processed contests: ${result.totals.contests}`);
+  console.log(`Used contests: ${result.totals.contests}`);
   console.log(`Computed players: ${result.totals.players}`);
   console.log(`Rating events: ${result.totals.ratingEvents}`);
-  console.log(`Unmatched pairs: ${result.totals.unmatchedPairs}`);
+  console.log(`Skipped invalid contests: ${result.source.skippedInvalidContests}`);
   console.log(`Saved teammate Elo data to: ${outputFile}`);
 }
 

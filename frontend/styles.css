@@ -208,7 +208,6 @@ thead th {
   background: #eaf3ef;
   font-size: 0.8rem;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
 }
 
 th,
@@ -216,9 +215,7 @@ td {
   border-bottom: 1px solid #deebe5;
   padding: 8px 9px;
   text-align: left;
-  vertical-align: top;
   font-size: 0.9rem;
-  white-space: nowrap;
 }
 
 tbody tr {

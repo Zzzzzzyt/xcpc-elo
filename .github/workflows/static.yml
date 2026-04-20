@@ -43,11 +43,23 @@ jobs:
         env:
           NPM_CONFIG_REGISTRY: "https://registry.npmjs.org"
         run: npm ci --registry=https://registry.npmjs.org
-      - name: Build ranklists and frontend
-        run: |
-          npm run compute:static-ranklists
-          npm run build:teammate-map
-          npm run build:elo-dashboard
+      - name: Restore CPCFinder crawl cache
+        id: cpcfinder-cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ./out/cpcfinder
+          key: cpcfinder-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            cpcfinder-${{ runner.os }}-${{ github.ref_name }}-
+            cpcfinder-${{ runner.os }}-
+      - name: Build dashboard workflow
+        run: npm run workflow:elo-dashboard
+      - name: Save CPCFinder crawl cache
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: ./out/cpcfinder
+          key: cpcfinder-${{ runner.os }}-${{ github.ref_name }}-${{ github.run_id }}
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact

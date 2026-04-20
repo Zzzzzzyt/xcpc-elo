@@ -1,33 +1,6 @@
-const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
-
-function ensureDir(dirPath) {
-  fs.mkdirSync(dirPath, { recursive: true });
-}
-
-function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, "utf8"));
-}
-
-function writeJson(filePath, value) {
-  ensureDir(path.dirname(filePath));
-  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-}
-
-function resolveText(value) {
-  if (typeof value === "string") {
-    return value;
-  }
-  if (!value || typeof value !== "object") {
-    return "";
-  }
-  return value["zh-CN"] || value.en || value.fallback || Object.values(value).find((v) => typeof v === "string") || "";
-}
-
-function normalize(value) {
-  return `${value || ""}`.trim().replace(/\s+/g, " ");
-}
+const { collectStaticRanklistFiles, normalize, readJson, resolveText, writeJson } = require("./lib/ranklist-utils.cjs");
 
 function pairHashId(organization, teamMember) {
   const orgNorm = normalize(organization).toLowerCase();
@@ -37,28 +10,7 @@ function pairHashId(organization, teamMember) {
   return `xcpc_${digest.slice(0, 16)}`;
 }
 
-function collectStaticRanklistFiles(rootDir) {
-  const files = [];
-
-  function walk(dir) {
-    const children = fs.readdirSync(dir, { withFileTypes: true });
-    for (const child of children) {
-      const fullPath = path.join(dir, child.name);
-      if (child.isDirectory()) {
-        walk(fullPath);
-        continue;
-      }
-      if (child.isFile() && child.name.endsWith(".static.srk.json")) {
-        files.push(fullPath);
-      }
-    }
-  }
-
-  walk(rootDir);
-  return files;
-}
-
-function buildMapping(staticRootDir, outputFile) {
+function buildTeammateOrganizationMap(staticRootDir, outputFile) {
   const ranklistFiles = collectStaticRanklistFiles(staticRootDir);
   const pairMap = new Map();
 
@@ -71,7 +23,6 @@ function buildMapping(staticRootDir, outputFile) {
       const user = row && row.user ? row.user : {};
       const organization = normalize(resolveText(user.organization));
       const teamMembers = Array.isArray(user.teamMembers) ? user.teamMembers : [];
-
       if (!organization || !teamMembers.length) {
         continue;
       }
@@ -89,12 +40,12 @@ function buildMapping(staticRootDir, outputFile) {
             organization,
             teamMember,
             contests: new Set(),
-            count: 0,
+            appearances: 0,
           });
         }
 
         const item = pairMap.get(key);
-        item.count += 1;
+        item.appearances += 1;
         item.contests.add(contestKey);
       }
     }
@@ -105,7 +56,7 @@ function buildMapping(staticRootDir, outputFile) {
       id: item.id,
       organization: item.organization,
       teamMember: item.teamMember,
-      appearances: item.count,
+      appearances: item.appearances,
       contests: [...item.contests].sort(),
     }))
     .sort((a, b) => a.id.localeCompare(b.id));
@@ -122,7 +73,7 @@ function buildMapping(staticRootDir, outputFile) {
 
   const output = {
     generatedAt: new Date().toISOString(),
-    sourceDir: staticRootDir,
+    staticRootDir,
     totalStaticRanklists: ranklistFiles.length,
     totalPairs: entries.length,
     entries,
@@ -130,7 +81,6 @@ function buildMapping(staticRootDir, outputFile) {
   };
 
   writeJson(outputFile, output);
-
   return output;
 }
 
@@ -138,13 +88,9 @@ function main() {
   const staticRootDir = path.resolve(process.argv[2] || path.join("out", "static-ranklists"));
   const outputFile = path.resolve(process.argv[3] || path.join("out", "teammate-map.json"));
 
-  if (!fs.existsSync(staticRootDir)) {
-    throw new Error(`Static ranklist directory does not exist: ${staticRootDir}`);
-  }
-
-  const result = buildMapping(staticRootDir, outputFile);
+  const result = buildTeammateOrganizationMap(staticRootDir, outputFile);
   console.log(`Scanned static ranklists: ${result.totalStaticRanklists}`);
-  console.log(`Collected pairs: ${result.totalPairs}`);
+  console.log(`Collected teammate-organization pairs: ${result.totalPairs}`);
   console.log(`Saved mapping to: ${outputFile}`);
 }
 
