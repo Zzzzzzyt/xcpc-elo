@@ -35,6 +35,35 @@ This runs the full workflow in order:
 
 `npm run build:elo-dashboard` is an alias of `workflow:elo-dashboard`.
 
+## Predict Ranking From Registration CSV
+
+Use `scripts/predict-ranking.cjs` to estimate team ranking from teammate Elo.
+
+The CSV file should have the following columns:
+- `school|university|学校|院校`
+- `[teammate|队员]<1|2|3>` (at least one teammate column is required)
+
+```bash
+node scripts/predict-ranking.cjs <input.csv> [output.csv] [elo.json] [--mode sum|max]
+```
+
+Examples:
+
+```bash
+# Default mode is sum.
+node scripts/predict-ranking.cjs icpc-xian.csv
+
+# Use max teammate rating instead of rating sum.
+node scripts/predict-ranking.cjs icpc-xian.csv --mode max
+```
+
+Arguments:
+
+- `input.csv`: Registration CSV to predict.
+- `output.csv` (optional): Output path, default is `<input>.predicted.csv`.
+- `elo.json` (optional): Elo source JSON, default is `out/teammate-elo.optimized.json`.
+- `--mode` (optional): `sum` or `max`.
+
 ## Key Outputs
 
 - Static ranklists: `out/static-ranklists/*.static.srk.json`

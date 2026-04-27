@@ -1,5 +1,8 @@
 const fs = require("fs");
 const path = require("path");
+const { ArgumentParser } = require("argparse");
+const { parse: parseCsvSync } = require("csv-parse/sync");
+const { stringify: stringifyCsvSync } = require("csv-stringify/sync");
 const { normalize, readJson } = require("./lib/ranklist-utils.cjs");
 
 const TEAMMATE_HEADER_PATTERN = /teammate|队员/i;
@@ -7,66 +10,10 @@ const ORG_HEADER_PATTERN = /school|university|学校|院校/i;
 const NAME_SPLIT_PATTERN = /[;,，、\/\|\n\t]+/;
 
 function parseCsv(text) {
-	const rows = [];
-	let row = [];
-	let cell = "";
-	let i = 0;
-	let inQuotes = false;
-
-	while (i < text.length) {
-		const ch = text[i];
-
-		if (inQuotes) {
-			if (ch === '"') {
-				if (text[i + 1] === '"') {
-					cell += '"';
-					i += 2;
-					continue;
-				}
-				inQuotes = false;
-				i += 1;
-				continue;
-			}
-			cell += ch;
-			i += 1;
-			continue;
-		}
-
-		if (ch === '"') {
-			inQuotes = true;
-			i += 1;
-			continue;
-		}
-
-		if (ch === ",") {
-			row.push(cell);
-			cell = "";
-			i += 1;
-			continue;
-		}
-
-		if (ch === "\n") {
-			row.push(cell);
-			rows.push(row);
-			row = [];
-			cell = "";
-			i += 1;
-			continue;
-		}
-
-		if (ch === "\r") {
-			i += 1;
-			continue;
-		}
-
-		cell += ch;
-		i += 1;
-	}
-
-	if (cell.length > 0 || row.length > 0) {
-		row.push(cell);
-		rows.push(row);
-	}
+	const rows = parseCsvSync(text, {
+		relax_column_count: true,
+		skip_empty_lines: false,
+	});
 
 	if (!rows.length) {
 		return { headers: [], rows: [] };
@@ -87,21 +34,8 @@ function parseCsv(text) {
 	return { headers, rows: dataRows };
 }
 
-function encodeCsvCell(value) {
-	const text = `${value == null ? "" : value}`;
-	if (!/[",\n\r]/.test(text)) {
-		return text;
-	}
-	return `"${text.replace(/"/g, '""')}"`;
-}
-
 function stringifyCsv(headers, rows) {
-	const lines = [];
-	lines.push(headers.map(encodeCsvCell).join(","));
-	for (const row of rows) {
-		lines.push(row.map(encodeCsvCell).join(","));
-	}
-	return `${lines.join("\n")}\n`;
+	return stringifyCsvSync([headers, ...rows]);
 }
 
 function splitTeammates(rawText) {
@@ -116,10 +50,13 @@ function splitTeammates(rawText) {
 		.filter(Boolean);
 }
 
-function buildRatingIndex(eloData) {
-	const initialRating = Number.isFinite(eloData && eloData.config && eloData.config.initialRating)
+function buildRatingIndex(eloData, fallbackInitialRating) {
+	const configuredInitialRating = Number.isFinite(eloData && eloData.config && eloData.config.initialRating)
 		? eloData.config.initialRating
 		: 1500;
+	const initialRating = Number.isFinite(fallbackInitialRating)
+		? fallbackInitialRating
+		: configuredInitialRating;
 	const players = Array.isArray(eloData && eloData.players) ? eloData.players : [];
 	const ratingByPair = new Map();
 
@@ -163,20 +100,74 @@ function detectColumnIndexes(headers) {
 	return { teammateIndexes, organizationIndex };
 }
 
-function predictRows(parsedCsv, ratingIndex, teammateIndexes, organizationIndex) {
+function parseAggregationMode(modeArg) {
+	const mode = normalize(modeArg || "sum").toLowerCase();
+	if (mode === "sum" || mode === "max") {
+		return mode;
+	}
+	throw new Error(`Invalid mode: ${modeArg}. Use \"sum\" or \"max\".`);
+}
+
+function parseCliArgs(argv) {
+	const parser = new ArgumentParser({
+		prog: "node scripts/predict-ranking.cjs",
+		description: "Predict team ranking from teammate Elo ratings.",
+	});
+
+	parser.add_argument("input", {
+		help: "Input CSV path.",
+	});
+	parser.add_argument("output", {
+		nargs: "?",
+		help: "Output CSV path.",
+	});
+	parser.add_argument("elo", {
+		nargs: "?",
+		help: "Elo JSON path.",
+	});
+	parser.add_argument("--mode", {
+		choices: ["sum", "max"],
+		default: "sum",
+		help: "Aggregation mode: sum teammate ratings or use max teammate rating.",
+	});
+	parser.add_argument("--default-elo", {
+		help: "Fallback Elo rating for unknown teammates. Defaults to Elo config initialRating (or 1500).",
+	});
+	parser.add_argument("--verbose", {
+		action: "store_true",
+		help: "Include detailed prediction columns: predicted_known_members, predicted_unknown_members, predicted_teammates.",
+	});
+
+	const parsed = parser.parse_args(argv.slice(2));
+	const defaultEloValue = parsed.default_elo == null ? null : Number(parsed.default_elo);
+	if (parsed.default_elo != null && !Number.isFinite(defaultEloValue)) {
+		throw new Error(`Invalid --default-elo value: ${parsed.default_elo}`);
+	}
+
+	return {
+		inputArg: parsed.input,
+		outputArg: parsed.output || null,
+		eloArg: parsed.elo || null,
+		aggregationMode: parseAggregationMode(parsed.mode),
+		defaultElo: defaultEloValue,
+		verbose: Boolean(parsed.verbose),
+	};
+}
+
+function predictRows(parsedCsv, ratingIndex, teammateIndexes, organizationIndex, aggregationMode) {
 	const predicted = parsedCsv.rows.map((row, rowIndex) => {
 		const organization = organizationIndex >= 0 ? normalize(row[organizationIndex]) : "";
 		const teammateNames = [...new Set(teammateIndexes.flatMap((idx) => splitTeammates(row[idx])))]
 			.map((name) => normalize(name))
 			.filter(Boolean);
 
-		let eloSum = 0;
+		const ratingValues = [];
 		let knownMembers = 0;
 		let unknownMembers = 0;
 
 		for (const name of teammateNames) {
 			const resolved = ratingIndex.getRating(organization, name);
-			eloSum += resolved.rating;
+			ratingValues.push(resolved.rating);
 			if (resolved.known) {
 				knownMembers += 1;
 			} else {
@@ -184,18 +175,22 @@ function predictRows(parsedCsv, ratingIndex, teammateIndexes, organizationIndex)
 			}
 		}
 
+		const ratingScore = aggregationMode === "max"
+			? (ratingValues.length ? Math.max(...ratingValues) : 0)
+			: ratingValues.reduce((sum, value) => sum + value, 0);
+
 		return {
 			originalRow: row,
 			sourceRowIndex: rowIndex,
 			organization,
 			teammateNames,
-			eloSum,
+			ratingScore,
 			knownMembers,
 			unknownMembers,
 		};
 	});
 
-	predicted.sort((a, b) => b.eloSum - a.eloSum || b.knownMembers - a.knownMembers || a.sourceRowIndex - b.sourceRowIndex);
+	predicted.sort((a, b) => b.ratingScore - a.ratingScore || b.knownMembers - a.knownMembers || a.sourceRowIndex - b.sourceRowIndex);
 	for (let i = 0; i < predicted.length; i += 1) {
 		predicted[i].predictedRank = i + 1;
 	}
@@ -203,16 +198,23 @@ function predictRows(parsedCsv, ratingIndex, teammateIndexes, organizationIndex)
 }
 
 function main() {
-	const inputArg = process.argv[2];
+	const {
+		inputArg,
+		outputArg: outputArgFromCli,
+		eloArg,
+		aggregationMode,
+		defaultElo,
+		verbose,
+	} = parseCliArgs(process.argv);
 	if (!inputArg) {
-		throw new Error("Usage: node scripts/predict-ranking.cjs <input.csv> [output.csv] [elo.json]");
+		throw new Error("Usage: node scripts/predict-ranking.cjs <input.csv> [output.csv] [elo.json] [--mode sum|max] [--default-elo <number>] [--verbose]");
 	}
 	const inputCsvPath = path.resolve(inputArg);
 
-	const outputArg = process.argv[3]
+	const outputArg = outputArgFromCli
 		|| (inputCsvPath.toLowerCase().endsWith(".csv") ? inputCsvPath.replace(/\.csv$/i, ".predicted.csv") : `${inputCsvPath}.predicted.csv`);
 	const outputCsvPath = path.resolve(outputArg);
-	const eloJsonPath = path.resolve(process.argv[4] || path.join("out", "teammate-elo.optimized.json"));
+	const eloJsonPath = path.resolve(eloArg || path.join("out", "teammate-elo.optimized.json"));
 
 	if (!fs.existsSync(inputCsvPath)) {
 		throw new Error(`Input CSV not found: ${inputCsvPath}`);
@@ -235,26 +237,30 @@ function main() {
 		throw new Error("No organization column found. Header must contain /school|university|学校|院校/i.");
 	}
 
-	const ratingIndex = buildRatingIndex(readJson(eloJsonPath));
-	const predictedRows = predictRows(parsedCsv, ratingIndex, teammateIndexes, organizationIndex);
+	const ratingIndex = buildRatingIndex(readJson(eloJsonPath), defaultElo);
+	const predictedRows = predictRows(parsedCsv, ratingIndex, teammateIndexes, organizationIndex, aggregationMode);
+	const scoreHeader = aggregationMode === "max" ? "predicted_elo_max" : "predicted_elo_sum";
 
 	const outputHeaders = [
 		"predicted_rank",
-		"predicted_elo_sum",
-		"predicted_known_members",
-		"predicted_unknown_members",
-		"predicted_teammates",
+		scoreHeader,
 		...parsedCsv.headers,
 	];
+	if (verbose) {
+		outputHeaders.splice(2, 0, "predicted_known_members", "predicted_unknown_members", "predicted_teammates");
+	}
 
-	const outputRows = predictedRows.map((item) => [
-		item.predictedRank,
-		Math.round(item.eloSum),
-		item.knownMembers,
-		item.unknownMembers,
-		item.teammateNames.join("; "),
-		...item.originalRow,
-	]);
+	const outputRows = predictedRows.map((item) => {
+		const row = [
+			item.predictedRank,
+			Math.round(item.ratingScore),
+		];
+		if (verbose) {
+			row.push(item.knownMembers, item.unknownMembers, item.teammateNames.join("; "));
+		}
+		row.push(...item.originalRow);
+		return row;
+	});
 
 	fs.mkdirSync(path.dirname(outputCsvPath), { recursive: true });
 	fs.writeFileSync(outputCsvPath, stringifyCsv(outputHeaders, outputRows), "utf8");
@@ -265,6 +271,7 @@ function main() {
 	console.log(`Input CSV: ${inputCsvPath}`);
 	console.log(`Output CSV: ${outputCsvPath}`);
 	console.log(`Elo source: ${eloJsonPath}`);
+	console.log(`Aggregation mode: ${aggregationMode}`);
 	console.log(`Detected teammate columns: ${teammateIndexes.map((idx) => parsedCsv.headers[idx]).join(", ")}`);
 	console.log(`Detected organization column: ${parsedCsv.headers[organizationIndex]}`);
 	console.log(`Predicted teams: ${predictedRows.length}`);

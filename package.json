@@ -22,6 +22,9 @@
   "dependencies": {
     "@algoux/standard-ranklist": "^0.3.12",
     "@algoux/standard-ranklist-utils": "^0.2.12",
+    "argparse": "^2.0.1",
+    "csv-parse": "^6.2.1",
+    "csv-stringify": "^6.7.0",
     "js-yaml": "^4.1.1"
   }
 }
