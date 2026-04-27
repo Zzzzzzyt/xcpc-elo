@@ -1,6 +1,12 @@
 const path = require("path");
 const crypto = require("crypto");
-const { applyCodeforcesUpdate, parseContestTimestamp, ratingTitle } = require("./lib/elo-core.cjs");
+const {
+  applyCodeforcesUpdate,
+  parseContestTimestamp,
+  ratingTitle,
+  DEFAULT_INITIAL_RATING,
+  ELO_SCALE,
+} = require("./lib/elo-core.cjs");
 const {
   assessParticipantNames,
   collectStaticRanklistFiles,
@@ -9,8 +15,6 @@ const {
   resolveText,
   writeJson,
 } = require("./lib/ranklist-utils.cjs");
-
-const DEFAULT_INITIAL_RATING = 1500;
 
 function pairKey(organization, teamMember) {
   return `${organization}\u0001${teamMember}`;
@@ -276,6 +280,7 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
       algorithm: "Codeforces rating (seed / mid-rank / two-step correction)",
       rankRule: "team rank = row index in ranklist.rows (1-based)",
       initialRating,
+      eloScale: ELO_SCALE,
     },
     totals: {
       contests: contests.length,

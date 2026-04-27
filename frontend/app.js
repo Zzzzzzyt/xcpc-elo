@@ -9,6 +9,7 @@
   const contests = data.contests;
   const contestTimestampByIndex = contests.map((contest) => parseContestStartTimestamp(contest && contest.startAt));
   const initialRating = data.config && typeof data.config.initialRating === "number" ? data.config.initialRating : 1500;
+  const eloScale = data.config && typeof data.config.eloScale === "number" ? data.config.eloScale : 800;
   const players = data.players.map((player) => {
     const historicalTopRating = computeHistoricalTopRating(player);
     const lastCompetedTimestamp = computeLastCompetedTimestamp(player);
@@ -79,7 +80,7 @@
   }
 
   function renderSummary() {
-    subtitle.textContent = `共 ${data.totals.players.toLocaleString()} 名选手，${data.totals.contests.toLocaleString()} 场比赛, 生成时间: ${new Date(data.generatedAt).toLocaleString("zh-CN")}`;
+    subtitle.textContent = `共 ${data.totals.players.toLocaleString()} 名选手，${data.totals.contests.toLocaleString()} 场比赛, 生成时间: ${new Date(data.generatedAt).toLocaleString("zh-CN")}，ELO 初始分: ${initialRating}，ELO 缩放系数: ${eloScale}`;
     const topHistorical = players.reduce(
       (best, player) => (topScore(player) > best ? topScore(player) : best),
       Number.NEGATIVE_INFINITY,
@@ -141,8 +142,8 @@
             <td class="mono">${shownRank}</td>
             <td>${escapeHtml(player.teamMember || player.id)}</td>
             <td>${escapeHtml(player.organization || "")}</td>
-            <td class="mono">${player.rating}</td>
-            <td class="mono">${formatTopRating(player.historicalTopRating)}</td>
+            <td class="mono">${formatRatingColored(player.rating, player.rating)}</td>
+            <td class="mono">${formatRatingColored(player.historicalTopRating, formatTopRating(player.historicalTopRating))}</td>
             <td class="${deltaClass} mono">${formatDelta(player.lastDelta || 0)}</td>
             <td class="mono">${player.contests}</td>
           </tr>
@@ -181,8 +182,9 @@
     const globalRank = globalRankByCurrent.get(player.id);
     playerName.textContent = `${player.teamMember}`;
     playerOrganization.textContent = `${player.organization || "未知学校"}`;
-    playerMeta.textContent = `当前排名 #${globalRank} | 当前分 ${player.rating} | 历史最高 ${formatTopRating(
+    playerMeta.innerHTML = `当前排名 #${globalRank} | 当前分 ${formatRatingColored(player.rating, player.rating)} | 历史最高 ${formatRatingColored(
       player.historicalTopRating,
+      formatTopRating(player.historicalTopRating),
     )} | 参赛 ${player.contests} 场 | 最后参赛 ${formatDateOnly(player.lastCompetedTimestamp)}`;
 
     drawChart(player);
@@ -221,8 +223,7 @@
   function drawPlotlyChart(sequence) {
     const firstDatedPoint = sequence.find((point) => point.date);
     const firstTimestamp = firstDatedPoint ? Date.parse(firstDatedPoint.date) : Number.NaN;
-    const initialDate =
-      Number.isFinite(firstTimestamp) ? new Date(firstTimestamp - 24 * 60 * 60 * 1000).toISOString() : null;
+    const initialDate = Number.isFinite(firstTimestamp) ? new Date(firstTimestamp - 24 * 60 * 60 * 1000).toISOString() : null;
     const x = sequence.map((point, index) => (index === 0 ? initialDate : point.date));
     const y = sequence.map((point) => point.rating);
     const hoverText = sequence.map((point) => {
@@ -296,7 +297,7 @@
             <td class="mono">${escapeHtml(dateText)}</td>
             <td class="mono">${event[1]}</td>
             <td class="${deltaClass} mono">${formatDelta(delta)}</td>
-            <td class="mono">${event[3]}</td>
+            <td class="mono">${formatRatingColored(event[3], event[3])}</td>
           </tr>
         `;
       })
@@ -384,6 +385,13 @@
     return typeof value === "number" ? `${value}` : "-";
   }
 
+  function formatRatingColored(rating, text) {
+    if (typeof rating === "number") {
+      return colorizeValue(rating, escapeHtml(`${text}`));
+    }
+    return escapeHtml(`${text}`);
+  }
+
   function formatDateOnly(value) {
     if (typeof value !== "number") {
       return "未知";
@@ -398,5 +406,31 @@
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  function ratingTitle(rating) {
+    if (rating < 1200) return "newbie";
+    if (rating < 1400) return "pupil";
+    if (rating < 1600) return "specialist";
+    if (rating < 1900) return "expert";
+    if (rating < 2100) return "candidate master";
+    if (rating < 2300) return "master";
+    if (rating < 2400) return "international master";
+    if (rating < 2600) return "grandmaster";
+    if (rating < 3000) return "international grandmaster";
+    return "legendary grandmaster";
+  }
+
+  function colorizeValue(rating, value) {
+    if (rating < 1200) return `<span style="color: gray">${value}</span>`;
+    if (rating < 1400) return `<span style="color: green">${value}</span>`;
+    if (rating < 1600) return `<span style="color: #03A89E">${value}</span>`;
+    if (rating < 1900) return `<span style="color: blue">${value}</span>`;
+    if (rating < 2100) return `<span style="color: #a0a">${value}</span>`;
+    if (rating < 2300) return `<span style="color: #FF8C00">${value}</span>`;
+    if (rating < 2400) return `<span style="color: red">${value}</span>`;
+    if (rating < 2600) return `<span style="color: red">${value}</span>`;
+    if (rating < 3000) return `<span style="color: red">${value}</span>`;
+    return `<span style="color:black">${value[0]}</span><span style="color: red">${value.slice(1)}</span>`;
   }
 })();

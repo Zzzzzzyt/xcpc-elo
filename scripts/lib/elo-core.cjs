@@ -1,5 +1,7 @@
 const MIN_RATING_FOR_SEARCH = -10000;
 const MAX_RATING_FOR_SEARCH = 10000;
+const ELO_SCALE = 800;
+const DEFAULT_INITIAL_RATING = 1500;
 
 function parseContestTimestamp(contest) {
   const startAt = contest && contest.startAt ? contest.startAt : null;
@@ -25,7 +27,7 @@ function buildSeedModel(rows) {
     if (value !== undefined) {
       return value;
     }
-    value = 1 / (1 + Math.pow(10, diff / 400));
+    value = 1 / (1 + Math.pow(10, diff / ELO_SCALE));
     probabilityByDiff.set(diff, value);
     return value;
   }
@@ -97,7 +99,7 @@ function applyCodeforcesUpdate(participants, getRating) {
   }
 
   const sumDelta = rows.reduce((acc, row) => acc + row.delta, 0);
-  const inc1 = Math.trunc((-sumDelta) / rows.length) - 1;
+  const inc1 = Math.trunc(-sumDelta / rows.length) - 1;
   for (const row of rows) {
     row.delta += inc1;
   }
@@ -105,7 +107,7 @@ function applyCodeforcesUpdate(participants, getRating) {
   const topCount = Math.min(rows.length, Math.floor(4 * Math.sqrt(rows.length)) + 1);
   const byRating = [...rows].sort((a, b) => b.rating - a.rating || a.rank - b.rank || a.id.localeCompare(b.id));
   const sumTop = byRating.slice(0, topCount).reduce((acc, row) => acc + row.delta, 0);
-  let inc2 = Math.trunc((-sumTop) / topCount);
+  let inc2 = Math.trunc(-sumTop / topCount);
   inc2 = Math.max(-10, Math.min(0, inc2));
   for (const row of rows) {
     row.delta += inc2;
@@ -131,4 +133,6 @@ module.exports = {
   applyCodeforcesUpdate,
   parseContestTimestamp,
   ratingTitle,
+  DEFAULT_INITIAL_RATING,
+  ELO_SCALE,
 };
