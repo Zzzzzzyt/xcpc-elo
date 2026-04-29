@@ -43,8 +43,12 @@ The CSV file should have the following columns:
 - `school|university|学校|院校`
 - `[teammate|队员]<1|2|3>` (at least one teammate column is required)
 
+Unmatched teammates are ignored when aggregating Elo. If a team has no matched teammates, its predicted score is `0`, so it falls to the bottom of the predicted ranking.
+
+The input CSV encoding is auto-detected, and the generated output CSV is written using the same encoding and BOM behavior as the input file.
+
 ```bash
-node scripts/predict-ranking.cjs <input.csv> [output.csv] [elo.json] [--mode sum|max]
+node scripts/predict-ranking.cjs <input.csv> [output.csv] [elo.json] [--mode sum|max|mean|geometric-mean]
 ```
 
 Examples:
@@ -55,6 +59,12 @@ node scripts/predict-ranking.cjs icpc-xian.csv
 
 # Use max teammate rating instead of rating sum.
 node scripts/predict-ranking.cjs icpc-xian.csv --mode max
+
+# Average teammate ratings.
+node scripts/predict-ranking.cjs icpc-xian.csv --mode mean
+
+# Use the geometric mean of teammate ratings.
+node scripts/predict-ranking.cjs icpc-xian.csv --mode geometric-mean
 ```
 
 Arguments:
@@ -62,7 +72,21 @@ Arguments:
 - `input.csv`: Registration CSV to predict.
 - `output.csv` (optional): Output path, default is `<input>.predicted.csv`.
 - `elo.json` (optional): Elo source JSON, default is `out/teammate-elo.optimized.json`.
-- `--mode` (optional): `sum` or `max`.
+- `--mode` (optional): `sum`, `max`, `mean`, or `geometric-mean`.
+
+## Backtest Aggregation Modes
+
+Use the backtest script to compare aggregation modes against historical contest ranklists with pre-contest teammate Elo snapshots:
+
+```bash
+npm run analyze:ranking-prediction
+```
+
+Or run it directly with a custom mode list:
+
+```bash
+node scripts/evaluate-ranking-prediction.cjs --modes max,mean,geometric-mean
+```
 
 ## Key Outputs
 

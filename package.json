@@ -11,6 +11,7 @@
     "step:5:teammate-org-map": "node scripts/build-teammate-map.cjs",
     "step:6:compute-elo": "node scripts/compute-teammate-elo.cjs",
     "step:7:build-frontend": "node scripts/build-elo-frontend.cjs",
+    "analyze:ranking-prediction": "node scripts/evaluate-ranking-prediction.cjs",
     "workflow:elo-dashboard": "npm run step:1:static-ranklists && npm run step:2:cpcfinder-crawl && npm run step:3:cpcfinder-srk-map && npm run step:4:substitute-static-ranklists && npm run step:5:teammate-org-map && npm run step:6:compute-elo && npm run step:7:build-frontend",
     "build:elo-dashboard": "npm run workflow:elo-dashboard",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -23,8 +24,10 @@
     "@algoux/standard-ranklist": "^0.3.12",
     "@algoux/standard-ranklist-utils": "^0.2.12",
     "argparse": "^2.0.1",
+    "chardet": "^2.1.1",
     "csv-parse": "^6.2.1",
     "csv-stringify": "^6.7.0",
+    "iconv-lite": "^0.7.2",
     "js-yaml": "^4.1.1"
   }
 }
