@@ -5,9 +5,24 @@ const {
   parseCollectionConfig,
   normalizeRanklistTeamMembers,
   readJson,
+  resolveText,
   shouldSkipContest,
   writeJson,
 } = require("./lib/ranklist-utils.cjs");
+
+function resolveContestDateKey(ranklist) {
+  const startAt = ranklist && ranklist.contest ? ranklist.contest.startAt : null;
+  if (typeof startAt !== "string") {
+    return "";
+  }
+
+  const trimmed = startAt.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  return trimmed.slice(0, 10);
+}
 
 async function computeAllStaticRanklists(collectionDir, outputDir) {
   const files = parseCollectionConfig(collectionDir);
@@ -16,6 +31,7 @@ async function computeAllStaticRanklists(collectionDir, outputDir) {
   const failures = [];
   const excludedItems = [];
   const invalidNameItems = [];
+  const seenTitleEntries = new Map();
 
   for (const entry of files) {
     const srcFilePath = path.join(collectionDir, entry.relativeFilePath);
@@ -33,6 +49,30 @@ async function computeAllStaticRanklists(collectionDir, outputDir) {
           detail: skipResult.detail,
         });
         continue;
+      }
+
+      const contestTitle = resolveText(ranklist && ranklist.contest && ranklist.contest.title);
+      const contestDateKey = resolveContestDateKey(ranklist);
+      if (contestTitle && contestDateKey) {
+        const duplicateKey = `${contestTitle}\u0001${contestDateKey}`;
+        const firstSeen = seenTitleEntries.get(duplicateKey);
+        if (firstSeen) {
+          excludedCount += 1;
+          excludedItems.push({
+            uniqueKey: entry.uniqueKey,
+            file: entry.relativeFilePath,
+            reason: "duplicate-title",
+            detail: `duplicate contest title/date: ${contestTitle} @ ${contestDateKey}`,
+            duplicateOf: firstSeen.uniqueKey,
+            duplicateOfFile: firstSeen.relativeFilePath,
+          });
+          continue;
+        }
+
+        seenTitleEntries.set(duplicateKey, {
+          uniqueKey: entry.uniqueKey,
+          relativeFilePath: entry.relativeFilePath,
+        });
       }
 
       const staticRanklist = convertToStaticRanklist(ranklist);
