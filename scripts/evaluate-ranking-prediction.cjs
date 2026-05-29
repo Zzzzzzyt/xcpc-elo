@@ -18,8 +18,8 @@ function parseCliArgs(argv) {
 	});
 
 	parser.add_argument("--elo", {
-		default: path.join("out", "teammate-elo.optimized.json"),
-		help: "Elo JSON path. Defaults to out/teammate-elo.optimized.json.",
+		default: path.join("out", "teammate-elo.json"),
+		help: "Elo JSON path. Defaults to out/teammate-elo.json.",
 	});
 	parser.add_argument("--static-root", {
 		default: path.join("out", "static-ranklists"),

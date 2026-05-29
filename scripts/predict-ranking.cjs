@@ -72,7 +72,7 @@ function main() {
 	const outputArg = outputArgFromCli
 		|| (inputCsvPath.toLowerCase().endsWith(".csv") ? inputCsvPath.replace(/\.csv$/i, ".predicted.csv") : `${inputCsvPath}.predicted.csv`);
 	const outputCsvPath = path.resolve(outputArg);
-	const eloJsonPath = path.resolve(eloArg || path.join("out", "teammate-elo.optimized.json"));
+	const eloJsonPath = path.resolve(eloArg || path.join("out", "teammate-elo.json"));
 
 	if (!fs.existsSync(inputCsvPath)) {
 		throw new Error(`Input CSV not found: ${inputCsvPath}`);

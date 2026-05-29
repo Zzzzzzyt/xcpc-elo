@@ -71,7 +71,7 @@ Arguments:
 
 - `input.csv`: Registration CSV to predict.
 - `output.csv` (optional): Output path, default is `<input>.predicted.csv`.
-- `elo.json` (optional): Elo source JSON, default is `out/teammate-elo.optimized.json`.
+- `elo.json` (optional): Elo source JSON, default is `out/teammate-elo.json`.
 - `--mode` (optional): `sum`, `max`, `mean`, or `geometric-mean`.
 
 ## Backtest Aggregation Modes
