@@ -68,6 +68,27 @@ body {
   padding: 20px 22px;
 }
 
+.hero {
+  position: relative;
+}
+
+.github-link {
+  position: absolute;
+  right: 18px;
+  top: 18px;
+  color: var(--muted);
+  opacity: 0.9;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.github-link:hover {
+  opacity: 1;
+  color: var(--ink);
+}
+
 .eyebrow {
   margin: 0 0 8px;
   font-size: 12px;
