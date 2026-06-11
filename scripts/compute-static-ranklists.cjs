@@ -78,7 +78,7 @@ async function computeAllStaticRanklists(collectionDir, outputDir) {
 
       const staticRanklist = convertToStaticRanklist(ranklist);
       const invalidCheck = assessParticipantNames(staticRanklist);
-      if (invalidCheck.invalid) {
+      if (invalidCheck.invalidRows.length > 0) {
         invalidNameItems.push({
           uniqueKey: entry.uniqueKey,
           file: entry.relativeFilePath,
