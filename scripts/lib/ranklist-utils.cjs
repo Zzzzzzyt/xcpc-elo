@@ -2,13 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const yaml = require("js-yaml");
 
-const EXCLUDED_CONTEST_PATTERNS = [
-  /world\s*finals?/i,
-  /worldfinals?/i,
-  /macau/i,
-  /university/i,
-  /rejudge/i,
-];
+const EXCLUDED_CONTEST_PATTERNS = [/world\s*finals?/i, /worldfinals?/i, /macau/i, /university/i, /rejudge/i, /ucup/i];
 
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
@@ -44,7 +38,7 @@ function normalizeForMatch(value) {
     .replace(/[()（）·・.,，。:：'"`]/g, "");
 }
 
-function isMetaMemberName(name) {
+function isSpecialMemberName(name) {
   const s = normalize(name);
   if (!s) return true;
   if (/^(无|無|空)$/i.test(s)) return true;
@@ -57,7 +51,7 @@ function isValidParticipantName(name) {
   if (s.length < 2) return false;
   if (/^\d+$/.test(s)) return false;
   if (/^(unknown|n\/?a|null|none|anonymous|匿名|待定|未知|未命名|未填写|-)$/i.test(s)) return false;
-  if (isMetaMemberName(s)) return false;
+  if (isSpecialMemberName(s)) return false;
   return /[a-zA-Z\u4e00-\u9fff0-9]/.test(s);
 }
 
@@ -68,22 +62,10 @@ function normalizeRowTeamMembers(row) {
 
   for (const member of teamMembers) {
     const raw = normalize(resolveText(member && member.name));
-    if (!raw || isMetaMemberName(raw)) {
+    if (!raw || isSpecialMemberName(raw)) {
       continue;
     }
-    const parts = raw
-      .split(" ")
-      .map((part) => part.trim())
-      .filter(Boolean);
-    if (parts.length >= 3) {
-      for (const part of parts) {
-        if (!isMetaMemberName(part)) {
-          normalized.push({ name: part });
-        }
-      }
-    } else {
-      normalized.push({ name: raw.replace(/^\s+|\s+$/g, "") });
-    }
+    normalized.push({ name: raw.replace(/^\s+|\s+$/g, "") });
   }
 
   user.teamMembers = normalized;
@@ -108,45 +90,51 @@ function assessParticipantNames(ranklist) {
     };
   }
 
-  let totalNames = 0;
-  let validNames = 0;
+  let totalCount = 0;
+  let invalidCount = 0;
+  let strangeCount = 0;
   const invalidRows = [];
+  const strangeRows = [];
 
   for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
     const row = rows[rowIndex];
     const user = row && row.user ? row.user : {};
-    const members = Array.isArray(user.teamMembers) ? user.teamMembers : [];
+    const members = user.teamMembers;
     const invalidNames = [];
+    const strangeNames = [];
 
-    for (const member of members) {
-      const name = normalize(resolveText(member && member.name));
-      if (!name || isMetaMemberName(name)) {
-        continue;
-      }
-      totalNames += 1;
-      if (isValidParticipantName(name)) {
-        validNames += 1;
-      } else {
-        invalidNames.push(name);
+    if (members.length > 3) {
+      strangeNames.push(...members.map((m) => m.name));
+    } else {
+      for (const member of members) {
+        const name = member.name;
+        if (name.length > 4 || name.length < 2) {
+          strangeNames.push(name);
+          strangeCount += 1;
+        }
+        totalCount += 1;
+        if (!isValidParticipantName(name)) {
+          invalidNames.push(name);
+          invalidCount += 1;
+        }
       }
     }
 
-    if (invalidNames.length) {
+    if (invalidNames.length > 0 || strangeNames.length > 0) {
       invalidRows.push({
         rowIndex,
         rank: rowIndex + 1,
         organization: normalize(resolveText(user.organization)),
         team: normalize(resolveText(user.name)),
         invalidNames,
+        strangeNames,
       });
     }
   }
 
   return {
-    invalid: validNames !== totalNames,
-    detail: `validNames=${validNames}, totalNames=${totalNames}`,
-    validNames,
-    totalNames,
+    invalid: invalidCount > 0,
+    detail: `invalidCount=${invalidCount} strangeCount=${strangeCount} totalCount=${totalCount}`,
     invalidRows,
   };
 }
@@ -234,7 +222,7 @@ module.exports = {
   readJson,
   resolveText,
   shouldSkipContest,
-  isMetaMemberName,
+  isSpecialMemberName,
   isValidParticipantName,
   writeJson,
 };

@@ -14,6 +14,7 @@
     "analyze:ranking-prediction": "node scripts/evaluate-ranking-prediction.cjs",
     "workflow:elo-dashboard": "npm run step:1:static-ranklists && npm run step:2:cpcfinder-crawl && npm run step:3:cpcfinder-srk-map && npm run step:4:substitute-static-ranklists && npm run step:5:teammate-org-map && npm run step:6:compute-elo && npm run step:7:build-frontend",
     "build:elo-dashboard": "npm run workflow:elo-dashboard",
+    "clean": "rm -r out/",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

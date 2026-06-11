@@ -3,7 +3,7 @@ const path = require("path");
 const {
   assessParticipantNames,
   collectStaticRanklistFiles,
-  isMetaMemberName,
+  isSpecialMemberName,
   isValidParticipantName,
   normalize,
   readJson,
@@ -16,7 +16,9 @@ const DEFAULT_CPCFINDER_OUTPUT_DIR = path.join("out", "cpcfinder");
 
 function isHongKongContestId(contestKey) {
   const value = `${contestKey || ""}`;
-  return /hong\s*kong/i.test(value) || /hongkong/i.test(value);
+  // TODO
+  // return /hong\s*kong/i.test(value) || /hongkong/i.test(value);
+  return contestKey == "icpc2025hongkong";
 }
 
 function chooseBestContestMapping(successItems) {
@@ -72,7 +74,7 @@ function sanitizeMembersFromAward(award) {
   const sanitized = [];
   for (const member of members) {
     const name = normalize(resolveText(member && member.name));
-    if (!name || isMetaMemberName(name) || !isValidParticipantName(name)) {
+    if (!name || isSpecialMemberName(name) || !isValidParticipantName(name)) {
       continue;
     }
     sanitized.push({ name });
@@ -196,12 +198,12 @@ function substituteCpcfinderIntoStaticRanklists(staticRootDir, cpcfinderOutputDi
     const before = assessParticipantNames(ranklist);
     if (!before.invalid && !isHongKong) {
       validBefore += 1;
-      items.push({
-        contestKey,
-        status: "already-valid",
-        before: before.detail,
-        after: before.detail,
-      });
+      // items.push({
+      //   contestKey,
+      //   status: "already-valid",
+      //   before: before.detail,
+      //   after: before.detail,
+      // });
       continue;
     }
 

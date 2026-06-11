@@ -162,16 +162,6 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
     const contest = ranklist && ranklist.contest ? ranklist.contest : {};
     const title = resolveText(contest.title) || contestKey;
 
-    const nameCheck = assessParticipantNames(ranklist);
-    if (nameCheck.invalid) {
-      skippedInvalidContests.push({
-        key: contestKey,
-        file: path.relative(staticRootDir, filePath).replace(/\\/g, "/"),
-        detail: nameCheck.detail,
-      });
-      continue;
-    }
-
     const participants = buildContestParticipants(ranklist, contestKey, teammateIndex, unresolvedEntries);
     contests.push({
       key: contestKey,

@@ -51,7 +51,8 @@ async function computeAllStaticRanklists(collectionDir, outputDir) {
         continue;
       }
 
-      const contestTitle = resolveText(ranklist && ranklist.contest && ranklist.contest.title);
+      const contestTitleRaw = resolveText(ranklist && ranklist.contest && ranklist.contest.title);
+      const contestTitle = contestTitleRaw && contestTitleRaw.substring(0, Math.min(contestTitleRaw.length, 40)).trim();
       const contestDateKey = resolveContestDateKey(ranklist);
       if (contestTitle && contestDateKey) {
         const duplicateKey = `${contestTitle}\u0001${contestDateKey}`;
@@ -62,7 +63,7 @@ async function computeAllStaticRanklists(collectionDir, outputDir) {
             uniqueKey: entry.uniqueKey,
             file: entry.relativeFilePath,
             reason: "duplicate-title",
-            detail: `duplicate contest title/date: ${contestTitle} @ ${contestDateKey}`,
+            detail: `duplicate contest title/date: ${contestTitleRaw} @ ${contestDateKey}`,
             duplicateOf: firstSeen.uniqueKey,
             duplicateOfFile: firstSeen.relativeFilePath,
           });

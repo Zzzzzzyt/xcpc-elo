@@ -12,6 +12,10 @@ const {
   writeJson,
 } = require("./lib/cpcfinder.cjs");
 
+const MANUAL_OVERRIDES = new Map(
+  [{ contestId: 65, srkUniqueKey: "ccpc2024final", note: "Manual override" }].map((item) => [item.contestId, item]),
+);
+
 function resolveText(value) {
   if (typeof value === "string") {
     return value;
@@ -227,31 +231,6 @@ function findByDatePrefixSingle(srkIndex, contestDate, prefix) {
   return prefixMatched.length === 1 ? prefixMatched[0] : "";
 }
 
-function loadManualOverrides(filePath) {
-  if (!filePath || !fs.existsSync(filePath)) {
-    return new Map();
-  }
-
-  const raw = readJson(filePath);
-  const items = Array.isArray(raw) ? raw : [];
-  const overrides = new Map();
-
-  for (const item of items) {
-    const contestId = Number.parseInt(`${item && item.contestId ? item.contestId : ""}`, 10);
-    const srkUniqueKey = normalizeText(item && item.srkUniqueKey);
-    if (!Number.isFinite(contestId) || contestId <= 0 || !srkUniqueKey) {
-      continue;
-    }
-    overrides.set(contestId, {
-      contestId,
-      srkUniqueKey,
-      note: normalizeText(item && item.note),
-    });
-  }
-
-  return overrides;
-}
-
 function doMapping(cpcIndexData, srkIndex, manualOverrides) {
   const records = asArray(cpcIndexData && cpcIndexData.records).filter((record) => !record.error);
   const success = [];
@@ -425,19 +404,16 @@ function main() {
   const cpcfinderOutputDir = path.resolve(process.argv[2] || DEFAULT_OUTPUT_DIR);
   const collectionDir = path.resolve(process.argv[3] || path.join("data", "srk-collection", "official"));
   const outputDir = path.resolve(process.argv[4] || cpcfinderOutputDir);
-  const manualOverrideFile = path.resolve(process.argv[5] || path.join(outputDir, "contest-map.manual.json"));
 
   const { index } = loadCpcfinderIndex(cpcfinderOutputDir);
   const srkIndex = buildSrkIndex(collectionDir);
-  const manualOverrides = loadManualOverrides(manualOverrideFile);
-  const mapped = doMapping(index, srkIndex, manualOverrides);
+  const mapped = doMapping(index, srkIndex, MANUAL_OVERRIDES);
 
   const summary = {
     generatedAt: new Date().toISOString(),
     cpcfinderOutputDir,
     collectionDir,
-    manualOverrideFile: fs.existsSync(manualOverrideFile) ? manualOverrideFile : null,
-    manualOverrides: manualOverrides.size,
+    manualOverrides: MANUAL_OVERRIDES,
     totals: {
       cpcfinderRecords: asArray(index && index.records).filter((record) => !record.error).length,
       srkContests: srkIndex.srkByKey.size,
