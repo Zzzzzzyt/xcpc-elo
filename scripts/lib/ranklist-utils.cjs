@@ -125,6 +125,9 @@ function normalizeRowTeamMembers(row) {
   const normalized = [];
 
   for (const member of teamMembers) {
+    if (member.role && member.role.toLowerCase() === "coach") {
+      continue;
+    }
     const raw = normalize(resolveText(member && member.name));
     if (!raw || isSpecialMemberName(raw)) {
       continue;
