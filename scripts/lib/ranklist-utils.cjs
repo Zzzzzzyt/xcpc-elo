@@ -2,7 +2,15 @@ const fs = require("fs");
 const path = require("path");
 const yaml = require("js-yaml");
 
-const EXCLUDED_CONTEST_PATTERNS = [/world\s*finals?/i, /worldfinals?/i, /macau/i, /university/i, /rejudge/i, /ucup/i];
+const EXCLUDED_CONTEST_PATTERNS = [
+  /world\s*finals?/i,
+  /worldfinals?/i,
+  /macau/i,
+  /university/i,
+  /rejudge/i,
+  /ucup/i,
+  /ahcpc2026preliminary/i,
+];
 const ORGANIZATION_NAME_FIXES = new Map([
   ["上海理エ大学", "上海理工大学"],
   ["哈尔滨エ业大学", "哈尔滨工业大学"],
