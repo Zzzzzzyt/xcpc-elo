@@ -30,11 +30,13 @@ function buildFrontend(inputJsonFile, templateDir, outputDir) {
   const indexHtml = readText(path.join(templateDir, "index.html"));
   const stylesCss = readText(path.join(templateDir, "styles.css"));
   const appJs = readText(path.join(templateDir, "app.js"));
+  const faviconSvg = readText(path.join(templateDir, "favicon.svg"));
 
   ensureDir(outputDir);
   writeText(path.join(outputDir, "index.html"), indexHtml);
   writeText(path.join(outputDir, "styles.css"), stylesCss);
   writeText(path.join(outputDir, "app.js"), appJs);
+  writeText(path.join(outputDir, "favicon.svg"), faviconSvg);
   writeText(path.join(outputDir, "data.js"), `window.__ELO_DATA__ = ${JSON.stringify(data)};\n`);
 
   return {
@@ -63,4 +65,3 @@ try {
   console.error(error && error.message ? error.message : String(error));
   process.exit(1);
 }
-
