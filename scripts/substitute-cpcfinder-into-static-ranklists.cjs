@@ -6,6 +6,7 @@ const {
   isSpecialMemberName,
   isValidParticipantName,
   normalize,
+  normalizeOrganizationName,
   readJson,
   resolveText,
   writeJson,
@@ -115,7 +116,7 @@ function substituteRowByRow(ranklist, awards, options) {
     const row = rows[index];
     const award = orderedAwards[index];
     const nextMembers = sanitizeMembersFromAward(award);
-    const nextOrganization = normalize(resolveText(award && award.schoolName));
+    const nextOrganization = normalizeOrganizationName(award && award.schoolName);
     if (!nextMembers.length) {
       unresolvedRows += 1;
       continue;
@@ -134,7 +135,7 @@ function substituteRowByRow(ranklist, awards, options) {
       rank: index + 1,
       mode,
       previousOrganization: prevOrganization,
-      substitutedSchool: normalize(resolveText(award && award.schoolName)),
+      substitutedSchool: normalizeOrganizationName(award && award.schoolName),
       substitutedTeam: normalize(resolveText(award && award.teamName)),
       substitutedMembers: nextMembers.map((member) => member.name),
     });

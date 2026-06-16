@@ -3,6 +3,53 @@ const path = require("path");
 const yaml = require("js-yaml");
 
 const EXCLUDED_CONTEST_PATTERNS = [/world\s*finals?/i, /worldfinals?/i, /macau/i, /university/i, /rejudge/i, /ucup/i];
+const ORGANIZATION_NAME_FIXES = new Map([
+  ["上海理エ大学", "上海理工大学"],
+  ["哈尔滨エ业大学", "哈尔滨工业大学"],
+  ["澳门大学(Universidade de Macau)", "澳门大学"],
+  ["蒙古国立大学（Монгол Улсын Их Сургууль）", "蒙古国立大学"],
+  ["National University of Mongolia", "蒙古国立大学"],
+  ["哈尔滨理工大学（荣成校区）", "哈尔滨理工大学（荣成）"],
+  ["哈尔滨理工大学荣成校区", "哈尔滨理工大学（荣成）"],
+  ["哈尔滨理工大学荣成学院", "哈尔滨理工大学（荣成）"],
+  ["河北农业大学渤海学院", "河北农业大学渤海校区"],
+  ["北京交通大学（威海）", "北京交通大学威海校区"],
+  ["北京师范大学（珠海校区）", "北京师范大学珠海校区"],
+  ["大连理工大学（盘锦校区）", "大连理工大学盘锦校区"],
+  ["山东科技大学（济南）", "山东科技大学济南校区"],
+  ["北京师范大学珠海分校", "北京师范大学珠海校区"],
+
+  ["代码源+", "代码源"],
+  ["社会参赛（代码源）", "代码源"],
+  ["华为", "华为技术有限公司"],
+  ["华为公司", "华为技术有限公司"],
+  ["华为战队", "华为技术有限公司"],
+  ["洛谷网络科技", "洛谷科技"],
+  ["南昌五中", "南昌市第五中学"],
+  ["牛客网", "牛客竞赛"],
+  ["腾讯科技（深圳）有限公司", "腾讯"],
+
+  ["个人", "个人参赛"],
+  ["个人报名", "个人参赛"],
+  ["个人打星", "个人参赛"],
+  ["个人联合参赛", "个人参赛"],
+  ["打星参赛", "个人参赛"],
+
+  ["浙江省诸暨海亮高级中学", "浙江省诸暨市海亮高级中学"],
+  ["杭高", "浙江省杭州高级中学"],
+  ["杭州高级中学", "浙江省杭州高级中学"],
+  ["杭二中", "杭州第二中学"],
+  ["杭州市第二中学", "杭州第二中学"],
+  ["浙江省杭州第二中学", "杭州第二中学"],
+  ["成都市第七中学", "四川省成都市第七中学"],
+  ["绍兴一中", "绍兴市第一中学"],
+  ["重庆市鲁能巴蜀中学校", "重庆市鲁能巴蜀中学"],
+  ["鲁能巴蜀中学", "重庆市鲁能巴蜀中学"],
+  ["长郡中学", "长沙市长郡中学"],
+  ["雅礼中学", "长沙市雅礼中学"],
+  ["学军中学", "杭州学军中学"],
+  ["金陵中学河西分校", "南京市金陵中学河西分校"],
+]);
 
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
@@ -29,6 +76,19 @@ function resolveText(value) {
 
 function normalize(value) {
   return `${value || ""}`.trim().replace(/\s+/g, " ");
+}
+
+function normalizeOrganizationName(value) {
+  var normalized = normalize(resolveText(value));
+  if (!normalized) {
+    return "";
+  }
+  if (/[a-zA-Z]/.test(normalized[0])) {
+    normalized = normalized.replace("（", "(").replace("）", ")");
+  } else {
+    normalized = normalized.replace("(", "（").replace(")", "）");
+  }
+  return ORGANIZATION_NAME_FIXES.get(normalized) || normalized;
 }
 
 function normalizeForMatch(value) {
@@ -69,6 +129,9 @@ function normalizeRowTeamMembers(row) {
   }
 
   user.teamMembers = normalized;
+  if (user.organization !== undefined) {
+    user.organization = normalizeOrganizationName(user.organization);
+  }
   row.user = user;
 }
 
@@ -216,6 +279,7 @@ module.exports = {
   collectStaticRanklistFiles,
   ensureDir,
   normalize,
+  normalizeOrganizationName,
   normalizeForMatch,
   normalizeRanklistTeamMembers,
   parseCollectionConfig,
