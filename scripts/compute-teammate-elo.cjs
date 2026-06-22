@@ -15,6 +15,7 @@ const {
   resolveText,
   writeJson,
 } = require("./lib/ranklist-utils.cjs");
+const { getPinyinInitials } = require("./lib/pinyin-utils.cjs");
 
 function pairKey(organization, teamMember) {
   return `${organization}\u0001${teamMember}`;
@@ -233,6 +234,7 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
       id: state.id,
       organization: state.organization,
       teamMember: state.teamMember,
+      pinyinInitials: getPinyinInitials(state.teamMember),
       mapAppearances: state.mapAppearances,
       contests: state.contests,
       rating: state.rating,

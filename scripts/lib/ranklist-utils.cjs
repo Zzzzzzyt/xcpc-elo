@@ -17,6 +17,7 @@ const ORGANIZATION_NAME_FIXES = new Map([
   ["澳门大学(Universidade de Macau)", "澳门大学"],
   ["蒙古国立大学（Монгол Улсын Их Сургууль）", "蒙古国立大学"],
   ["National University of Mongolia", "蒙古国立大学"],
+  ["Mongolian University of Science and Technology", "蒙古科技大学"],
   ["哈尔滨理工大学（荣成校区）", "哈尔滨理工大学（荣成）"],
   ["哈尔滨理工大学荣成校区", "哈尔滨理工大学（荣成）"],
   ["哈尔滨理工大学荣成学院", "哈尔滨理工大学（荣成）"],

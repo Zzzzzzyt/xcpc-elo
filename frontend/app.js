@@ -13,11 +13,13 @@
   const players = data.players.map((player) => {
     const historicalTopRating = computeHistoricalTopRating(player);
     const lastCompetedTimestamp = computeLastCompetedTimestamp(player);
+    const pinyinInitials = normalizeSearchToken(player.pinyinInitials);
     return {
       ...player,
+      pinyinInitials,
       historicalTopRating,
       lastCompetedTimestamp,
-      searchText: `${player.teamMember} ${player.organization} ${player.id}`.toLowerCase(),
+      searchText: normalizeSearchToken(`${player.teamMember} ${player.organization} ${player.id} ${pinyinInitials}`),
     };
   });
   const globalRankByCurrent = new Map(
@@ -29,6 +31,7 @@
 
   const state = {
     query: "",
+    queryTerms: [],
     sortBy: "current",
     lastCompetedSince: "",
     lastCompetedSinceTimestamp: null,
@@ -55,7 +58,8 @@
   renderPlayerDetail();
 
   searchInput.addEventListener("input", () => {
-    state.query = searchInput.value.trim().toLowerCase();
+    state.query = normalizeSearchToken(searchInput.value);
+    state.queryTerms = splitSearchTerms(state.query);
     renderLeaderboard();
   });
 
@@ -89,8 +93,8 @@
 
   function getFilteredPlayers() {
     let filtered = players;
-    if (state.query) {
-      filtered = players.filter((player) => player.searchText.includes(state.query));
+    if (state.queryTerms.length) {
+      filtered = players.filter((player) => state.queryTerms.every((term) => player.searchText.includes(term)));
     }
     if (state.lastCompetedSinceTimestamp !== null) {
       filtered = filtered.filter(
@@ -375,6 +379,17 @@
 
   function topScore(player) {
     return typeof player.historicalTopRating === "number" ? player.historicalTopRating : Number.NEGATIVE_INFINITY;
+  }
+
+  function normalizeSearchToken(value) {
+    return `${value || ""}`.trim().toLowerCase();
+  }
+
+  function splitSearchTerms(value) {
+    if (!value) {
+      return [];
+    }
+    return value.split(/\s+/).filter(Boolean);
   }
 
   function formatDelta(delta) {
