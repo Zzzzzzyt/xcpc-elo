@@ -19,7 +19,7 @@
       pinyinInitials,
       historicalTopRating,
       lastCompetedTimestamp,
-      searchText: normalizeSearchToken(`${player.teamMember} ${player.organization} ${player.id} ${pinyinInitials}`),
+      searchText: normalizeSearchToken(`${player.teamMember}-${player.organization}-${pinyinInitials}`),
     };
   });
   const globalRankByCurrent = new Map(
@@ -47,7 +47,6 @@
   const leaderboardBody = document.getElementById("leaderboardBody");
   const leaderboardHint = document.getElementById("leaderboardHint");
   const playerName = document.getElementById("playerName");
-  const playerOrganization = document.getElementById("playerOrganization");
   const playerMeta = document.getElementById("playerMeta");
   const ratingChart = document.getElementById("ratingChart");
   const historyBody = document.getElementById("historyBody");
@@ -80,6 +79,13 @@
         lastCompetedSinceInput.value = "";
       }
       updateLastCompetedFilter("");
+    });
+  }
+
+  const colorSchemeMedia = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+  if (colorSchemeMedia && typeof colorSchemeMedia.addEventListener === "function") {
+    colorSchemeMedia.addEventListener("change", () => {
+      renderPlayerDetail();
     });
   }
 
@@ -175,7 +181,6 @@
     const player = playerById.get(state.selectedId);
     if (!player) {
       playerName.textContent = "选手详情";
-      playerOrganization.textContent = "";
       playerMeta.textContent = "尚未选择选手。";
       clearChart();
       historyBody.innerHTML = "";
@@ -184,8 +189,7 @@
     }
 
     const globalRank = globalRankByCurrent.get(player.id);
-    playerName.textContent = `${player.teamMember}`;
-    playerOrganization.textContent = `${player.organization || "未知学校"}`;
+    playerName.textContent = `${player.organization || "未知组织"} - ${player.teamMember}`;
     playerMeta.innerHTML = `当前排名 #${globalRank} | 当前分 ${formatRatingColored(player.rating, player.rating)} | 历史最高 ${formatRatingColored(
       player.historicalTopRating,
       formatTopRating(player.historicalTopRating),
@@ -225,6 +229,7 @@
   }
 
   function drawPlotlyChart(sequence) {
+    const chartTheme = getChartTheme();
     const firstDatedPoint = sequence.find((point) => point.date);
     const firstTimestamp = firstDatedPoint ? Date.parse(firstDatedPoint.date) : Number.NaN;
     const initialDate = Number.isFinite(firstTimestamp) ? new Date(firstTimestamp - 24 * 60 * 60 * 1000).toISOString() : null;
@@ -244,8 +249,8 @@
           y,
           type: "scatter",
           mode: "lines+markers",
-          line: { color: "#31f3b2", width: 2.5 },
-          marker: { color: "#129462", size: 5 },
+          line: { color: chartTheme.lineColor, width: 2.5 },
+          marker: { color: chartTheme.markerColor, size: 5 },
           text: hoverText,
           hovertemplate: "%{text}<extra></extra>",
         },
@@ -258,13 +263,15 @@
           type: "date",
           tickformat: "%Y-%m-%d",
           tickmode: "auto",
+          color: chartTheme.textColor,
           showgrid: true,
-          gridcolor: "rgba(16, 33, 39, 0.1)",
+          gridcolor: chartTheme.gridColor,
           zeroline: false,
         },
         yaxis: {
+          color: chartTheme.textColor,
           showgrid: true,
-          gridcolor: "rgba(16, 33, 39, 0.1)",
+          gridcolor: chartTheme.gridColor,
           zeroline: false,
         },
         hovermode: "closest",
@@ -381,6 +388,16 @@
     return typeof player.historicalTopRating === "number" ? player.historicalTopRating : Number.NEGATIVE_INFINITY;
   }
 
+  function getChartTheme() {
+    const styles = getComputedStyle(document.documentElement);
+    return {
+      lineColor: styles.getPropertyValue("--chart-line").trim() || "#129462",
+      markerColor: styles.getPropertyValue("--chart-dot").trim() || "#31f3b2",
+      gridColor: styles.getPropertyValue("--chart-grid").trim() || "rgba(16, 33, 39, 0.1)",
+      textColor: styles.getPropertyValue("--muted").trim() || "#546067",
+    };
+  }
+
   function normalizeSearchToken(value) {
     return `${value || ""}`.trim().toLowerCase();
   }
@@ -437,15 +454,15 @@
   }
 
   function colorizeValue(rating, value) {
-    if (rating < 1200) return `<span style="color: gray">${value}</span>`;
-    if (rating < 1400) return `<span style="color: green">${value}</span>`;
-    if (rating < 1600) return `<span style="color: #03A89E">${value}</span>`;
-    if (rating < 1900) return `<span style="color: blue">${value}</span>`;
-    if (rating < 2100) return `<span style="color: #a0a">${value}</span>`;
-    if (rating < 2300) return `<span style="color: #FF8C00">${value}</span>`;
-    if (rating < 2400) return `<span style="color: red">${value}</span>`;
-    if (rating < 2600) return `<span style="color: red">${value}</span>`;
-    if (rating < 3000) return `<span style="color: red">${value}</span>`;
-    return `<span style="color:black">${value[0]}</span><span style="color: red">${value.slice(1)}</span>`;
+    if (rating < 1200) return `<span style="color: var(--rating-color-0)">${value}</span>`;
+    if (rating < 1400) return `<span style="color: var(--rating-color-1)">${value}</span>`;
+    if (rating < 1600) return `<span style="color: var(--rating-color-2)">${value}</span>`;
+    if (rating < 1900) return `<span style="color: var(--rating-color-3)">${value}</span>`;
+    if (rating < 2100) return `<span style="color: var(--rating-color-4)">${value}</span>`;
+    if (rating < 2300) return `<span style="color: var(--rating-color-5)">${value}</span>`;
+    if (rating < 2400) return `<span style="color: var(--rating-color-6)">${value}</span>`;
+    if (rating < 2600) return `<span style="color: var(--rating-color-7)">${value}</span>`;
+    if (rating < 3000) return `<span style="color: var(--rating-color-8)">${value}</span>`;
+    return `<span style="color:var(--rating-color-9a)">${value[0]}</span><span style="color: var(--rating-color-9b)">${value.slice(1)}</span>`;
   }
 })();

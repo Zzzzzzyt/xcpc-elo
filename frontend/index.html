@@ -3,20 +3,27 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
     <title>XCPC ELO</title>
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="backdrop"></div>
-    <div class="backdrop-grid"></div>
-
     <main class="layout">
       <header class="hero panel">
         <h1>XCPC ELO</h1>
-        <a class="github-link" href="https://github.com/Zzzzzzyt/xcpc-elo" target="_blank" rel="noopener noreferrer" aria-label="View on GitHub">
+        <a
+          class="github-link"
+          href="https://github.com/Zzzzzzyt/xcpc-elo"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="View on GitHub"
+        >
           <svg viewBox="0 0 16 16" width="20" height="20" fill="currentColor" aria-hidden="true">
-            <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 012.01-.27c.68 0 1.36.09 2.01.27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.19 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+            <path
+              fill-rule="evenodd"
+              d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 012.01-.27c.68 0 1.36.09 2.01.27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.19 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
+            ></path>
           </svg>
         </a>
         <p id="subtitle">正在加载数据...</p>
@@ -26,7 +33,7 @@
         <section class="panel leaderboard">
           <div class="panel-head">
             <div class="controls">
-              <input id="searchInput" type="search" placeholder="按姓名 / 拼音首字母 / 学校 / ID 搜索..." />
+              <input id="searchInput" type="search" placeholder="按姓名 / 拼音首字母 / 学校搜索..." />
               <select id="sortSelect">
                 <option value="current">排序：当前分</option>
                 <option value="top">排序：历史最高分</option>
@@ -39,7 +46,7 @@
               </div>
             </div>
           </div>
-          <div class="table-wrap" style="max-height: 65vh;">
+          <div class="table-wrap teammate-table">
             <table>
               <thead>
                 <tr>
@@ -59,22 +66,19 @@
         </section>
 
         <section class="panel player-detail">
-          <div class="panel-head">
-            <h2 id="playerName">选手详情</h2>
-            <p id="playerOrganization"></p>
-          </div>
+          <h2 id="playerName">选手详情</h2>
           <p id="playerMeta"></p>
           <div class="chart-wrap">
             <div id="ratingChart"></div>
           </div>
-          <div class="table-wrap" style="max-height: 40vh;">
+          <div class="table-wrap history-table">
             <table>
               <thead>
                 <tr>
-                  <th style="width:55%;">比赛</th>
-                  <th style="width:10%">日期</th>
-                  <th style="width:8%">名次</th>
-                  <th style="width:6%">&Delta;</th>
+                  <th style="width: 55%">比赛</th>
+                  <th style="width: 10%">日期</th>
+                  <th style="width: 8%">名次</th>
+                  <th style="width: 6%">&Delta;</th>
                   <th>分数</th>
                 </tr>
               </thead>
@@ -87,7 +91,11 @@
     </main>
 
     <script src="./data.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@3.5.1/plotly.min.js" integrity="sha256-3y1u9/3WPP9LlwnQaIvfiGWzTmM0YznGabosLtdbL28=" crossorigin="anonymous"></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@3.5.1/plotly.min.js"
+      integrity="sha256-3y1u9/3WPP9LlwnQaIvfiGWzTmM0YznGabosLtdbL28="
+      crossorigin="anonymous"
+    ></script>
     <script src="./app.js"></script>
   </body>
 </html>
