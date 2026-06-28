@@ -9,6 +9,7 @@ const {
   shouldSkipContest,
   writeJson,
 } = require("./lib/ranklist-utils.cjs");
+const crypto = require("crypto");
 
 function resolveContestDateKey(ranklist) {
   const startAt = ranklist && ranklist.contest ? ranklist.contest.startAt : null;
@@ -22,6 +23,16 @@ function resolveContestDateKey(ranklist) {
   }
 
   return trimmed.slice(0, 10);
+}
+
+function resolveContestUserHash(ranklist) {
+  const rows = ranklist.rows;
+  const hash = crypto.createHash("md5");
+  for (const row of rows) {
+    const name = resolveText(row.user.name);
+    hash.update(name || "");
+  }
+  return hash.digest("hex");
 }
 
 async function computeAllStaticRanklists(collectionDir, outputDir) {
@@ -51,30 +62,49 @@ async function computeAllStaticRanklists(collectionDir, outputDir) {
         continue;
       }
 
-      const contestTitleRaw = resolveText(ranklist && ranklist.contest && ranklist.contest.title);
-      const contestTitle = contestTitleRaw && contestTitleRaw.substring(0, Math.min(contestTitleRaw.length, 40)).trim();
+      const contestTitleRaw = resolveText(ranklist.contest.title);
+      const contestTitle = contestTitleRaw.substring(0, Math.min(contestTitleRaw.length, 40)).trim();
+      const contestUserHash = resolveContestUserHash(ranklist);
       const contestDateKey = resolveContestDateKey(ranklist);
-      if (contestTitle && contestDateKey) {
-        const duplicateKey = `${contestTitle}\u0001${contestDateKey}`;
-        const firstSeen = seenTitleEntries.get(duplicateKey);
-        if (firstSeen) {
-          excludedCount += 1;
-          excludedItems.push({
-            uniqueKey: entry.uniqueKey,
-            file: entry.relativeFilePath,
-            reason: "duplicate-title",
-            detail: `duplicate contest title/date: ${contestTitleRaw} @ ${contestDateKey}`,
-            duplicateOf: firstSeen.uniqueKey,
-            duplicateOfFile: firstSeen.relativeFilePath,
-          });
-          continue;
-        }
+      const duplicateKey = `${contestTitle}\u0001${contestDateKey}`;
+      const duplicateKey2 = `${contestUserHash}\u0001${contestDateKey}`;
 
-        seenTitleEntries.set(duplicateKey, {
+      const firstSeen = seenTitleEntries.get(duplicateKey);
+      if (firstSeen) {
+        excludedCount += 1;
+        excludedItems.push({
           uniqueKey: entry.uniqueKey,
-          relativeFilePath: entry.relativeFilePath,
+          file: entry.relativeFilePath,
+          reason: "duplicate-title",
+          detail: `duplicate contest title/date: ${contestTitleRaw} @ ${contestDateKey}`,
+          duplicateOf: firstSeen.uniqueKey,
+          duplicateOfFile: firstSeen.relativeFilePath,
         });
+        continue;
       }
+
+      const firstSeen2 = seenTitleEntries.get(duplicateKey2);
+      if (firstSeen2) {
+        excludedCount += 1;
+        excludedItems.push({
+          uniqueKey: entry.uniqueKey,
+          file: entry.relativeFilePath,
+          reason: "duplicate-user-hash",
+          detail: `duplicate contest hash/date: ${contestUserHash} @ ${contestDateKey}`,
+          duplicateOf: firstSeen2.uniqueKey,
+          duplicateOfFile: firstSeen2.relativeFilePath,
+        });
+        continue;
+      }
+
+      seenTitleEntries.set(duplicateKey, {
+        uniqueKey: entry.uniqueKey,
+        relativeFilePath: entry.relativeFilePath,
+      });
+      seenTitleEntries.set(duplicateKey2, {
+        uniqueKey: entry.uniqueKey,
+        relativeFilePath: entry.relativeFilePath,
+      });
 
       const staticRanklist = convertToStaticRanklist(ranklist);
       const invalidCheck = assessParticipantNames(staticRanklist);
