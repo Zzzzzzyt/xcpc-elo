@@ -14,12 +14,16 @@
     const historicalTopRating = computeHistoricalTopRating(player);
     const lastCompetedTimestamp = computeLastCompetedTimestamp(player);
     const pinyinInitials = normalizeSearchToken(player.pinyinInitials);
+    const searchFields = buildSearchFields(player, pinyinInitials);
+    const searchText = buildSearchText(player, pinyinInitials, searchFields);
     return {
       ...player,
       pinyinInitials,
       historicalTopRating,
       lastCompetedTimestamp,
-      searchText: normalizeSearchToken(`${player.teamMember}-${player.organization}-${pinyinInitials}`),
+      searchText,
+      searchRegexText: buildSearchRegexText(player, pinyinInitials),
+      searchExactTerms: buildSearchExactTerms(searchFields),
     };
   });
   const globalRankByCurrent = new Map(
@@ -57,8 +61,8 @@
   renderPlayerDetail();
 
   searchInput.addEventListener("input", () => {
-    state.query = normalizeSearchToken(searchInput.value);
-    state.queryTerms = splitSearchTerms(state.query);
+    state.query = searchInput.value;
+    state.queryTerms = parseSearchQuery(state.query);
     renderLeaderboard();
   });
 
@@ -100,7 +104,7 @@
   function getFilteredPlayers() {
     let filtered = players;
     if (state.queryTerms.length) {
-      filtered = players.filter((player) => state.queryTerms.every((term) => player.searchText.includes(term)));
+      filtered = players.filter((player) => matchesSearchRules(player, state.queryTerms));
     }
     if (state.lastCompetedSinceTimestamp !== null) {
       filtered = filtered.filter(
@@ -399,14 +403,234 @@
   }
 
   function normalizeSearchToken(value) {
-    return `${value || ""}`.trim().toLowerCase();
+    return `${value || ""}`.trim().toLowerCase().replace(/\s+/g, " ");
   }
 
-  function splitSearchTerms(value) {
+  function buildSearchFields(player, pinyinInitials) {
+    return [player.teamMember, player.organization, pinyinInitials, player.id]
+      .map((value) => normalizeSearchToken(value))
+      .filter(Boolean);
+  }
+
+  function buildSearchText(player, pinyinInitials, searchFields) {
+    const legacyText = normalizeSearchToken(`${player.teamMember}-${player.organization}-${pinyinInitials}`);
+    return [...searchFields, legacyText].filter(Boolean).join(" ");
+  }
+
+  function buildSearchRegexText(player, pinyinInitials) {
+    return [player.teamMember, player.organization, pinyinInitials, player.id]
+      .map((value) => normalizeSearchPatternText(value))
+      .filter(Boolean)
+      .join(" ");
+  }
+
+  function buildSearchExactTerms(searchFields) {
+    const terms = new Set(searchFields);
+    for (const field of searchFields) {
+      for (const word of splitSearchWords(field)) {
+        terms.add(word);
+      }
+    }
+    return terms;
+  }
+
+  function splitSearchWords(value) {
+    return value.split(/[\s\-_/\\|,，;；:：.。()（）[\]【】{}<>《》'"“”‘’]+/).filter(Boolean);
+  }
+
+  function normalizeSearchPatternText(value) {
+    return `${value || ""}`.trim().replace(/\s+/g, " ");
+  }
+
+  function parseSearchQuery(value) {
     if (!value) {
       return [];
     }
-    return value.split(/\s+/).filter(Boolean);
+    return tokenizeSearchQuery(value)
+      .map(parseSearchRule)
+      .filter((rule) => rule.value || rule.regex);
+  }
+
+  function tokenizeSearchQuery(value) {
+    const source = `${value || ""}`;
+    const tokens = [];
+    let index = 0;
+
+    while (index < source.length) {
+      while (index < source.length && /\s/.test(source[index])) {
+        index += 1;
+      }
+      if (index >= source.length) {
+        break;
+      }
+
+      const regexToken = readRegexToken(source, index);
+      if (regexToken) {
+        tokens.push(regexToken.token);
+        index = regexToken.nextIndex;
+        continue;
+      }
+
+      const quotedToken = readQuotedToken(source, index);
+      if (quotedToken) {
+        tokens.push(quotedToken.token);
+        index = quotedToken.nextIndex;
+        continue;
+      }
+
+      const start = index;
+      while (index < source.length && !/\s/.test(source[index])) {
+        index += 1;
+      }
+      tokens.push(source.slice(start, index));
+    }
+
+    return tokens;
+  }
+
+  function readQuotedToken(source, startIndex) {
+    const prefixEnd = skipSearchRulePrefixes(source, startIndex);
+    const quote = source[prefixEnd];
+    if (quote !== '"' && quote !== "'") {
+      return null;
+    }
+
+    let token = source.slice(startIndex, prefixEnd);
+    for (let index = prefixEnd + 1; index < source.length; index += 1) {
+      const char = source[index];
+      if (char === "\\" && index + 1 < source.length) {
+        token += source[index + 1];
+        index += 1;
+        continue;
+      }
+      if (char === quote) {
+        return { token, nextIndex: index + 1 };
+      }
+      token += char;
+    }
+
+    return { token: source.slice(startIndex), nextIndex: source.length };
+  }
+
+  function readRegexToken(source, startIndex) {
+    const prefixEnd = skipSearchRulePrefixes(source, startIndex);
+    if (source[prefixEnd] !== "/") {
+      return null;
+    }
+
+    let escaped = false;
+    let inCharacterClass = false;
+    for (let index = prefixEnd + 1; index < source.length; index += 1) {
+      const char = source[index];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === "[") {
+        inCharacterClass = true;
+        continue;
+      }
+      if (char === "]") {
+        inCharacterClass = false;
+        continue;
+      }
+      if (char === "/" && !inCharacterClass) {
+        let nextIndex = index + 1;
+        while (nextIndex < source.length && /[a-z]/i.test(source[nextIndex])) {
+          nextIndex += 1;
+        }
+        if (nextIndex === source.length || /\s/.test(source[nextIndex])) {
+          return { token: source.slice(startIndex, nextIndex), nextIndex };
+        }
+      }
+    }
+
+    return null;
+  }
+
+  function skipSearchRulePrefixes(source, startIndex) {
+    let index = startIndex;
+    while (source[index] === "!" || source[index] === "-") {
+      index += 1;
+    }
+    return index;
+  }
+
+  function parseSearchRule(token) {
+    let value = `${token || ""}`;
+    let exact = false;
+    let exclude = false;
+
+    while (value.startsWith("-") || value.startsWith("!")) {
+      if (value.startsWith("-")) {
+        exact = true;
+      } else {
+        exclude = true;
+      }
+      value = value.slice(1);
+    }
+
+    const regex = parseRegexLiteral(value);
+    if (regex) {
+      return {
+        value,
+        regex,
+        exclude,
+      };
+    }
+
+    return {
+      value: normalizeSearchToken(value),
+      exact,
+      exclude,
+    };
+  }
+
+  function parseRegexLiteral(value) {
+    if (!value.startsWith("/")) {
+      return null;
+    }
+    const lastSlashIndex = value.lastIndexOf("/");
+    if (lastSlashIndex <= 0) {
+      return null;
+    }
+
+    const pattern = value.slice(1, lastSlashIndex);
+    const flags = value.slice(lastSlashIndex + 1);
+    if (/[^dgimsuvy]/.test(flags)) {
+      return null;
+    }
+
+    try {
+      return new RegExp(pattern, flags);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function matchesSearchRules(player, rules) {
+    for (const rule of rules) {
+      const matched = matchesSearchRule(player, rule);
+      if (rule.exclude ? matched : !matched) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function matchesSearchRule(player, rule) {
+    if (rule.regex) {
+      rule.regex.lastIndex = 0;
+      return rule.regex.test(player.searchRegexText);
+    }
+    if (rule.exact) {
+      return player.searchExactTerms.has(rule.value);
+    }
+    return player.searchText.includes(rule.value);
   }
 
   function formatDelta(delta) {

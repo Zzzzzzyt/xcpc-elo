@@ -28,6 +28,16 @@ This runs the full workflow in order:
 
 `npm run build:elo-dashboard` is an alias of `workflow:elo-dashboard`.
 
+## Frontend Search
+
+The dashboard search box supports multiple whitespace-separated rules. A player must match every positive rule and no negative rule.
+
+- `alice tsinghua`: fuzzy match every keyword against teammate name, organization, pinyin initials, and id.
+- `-alice`: exact match a full field or separated word.
+- `!test`: exclude fuzzy matches.
+- `/^alice/i`: match with a JavaScript regular expression.
+- `!/(test|guest)/i`: exclude regular expression matches.
+
 ## Predict Ranking From Registration CSV
 
 Use `scripts/predict-ranking.cjs` to estimate team ranking from teammate Elo.
