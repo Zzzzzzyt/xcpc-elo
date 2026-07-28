@@ -2,9 +2,9 @@ const { parse: parseCsvSync } = require("csv-parse/sync");
 const { stringify: stringifyCsvSync } = require("csv-stringify/sync");
 const { normalize, resolveText } = require("./ranklist-utils.cjs");
 
-const TEAMMATE_HEADER_PATTERN = /teammate|队员/i;
+const TEAMMATE_HEADER_PATTERN = /teammate|队员|member/i;
 const TEAMMATE_HEADER_BLACKLIST_PATTERN = /rating/i;
-const ORG_HEADER_PATTERN = /school|university|学校|院校/i;
+const ORG_HEADER_PATTERN = /school|university|学校|院校|organization/i;
 const NAME_SPLIT_PATTERN = /[;,，、\/\|\n\t]+/;
 const DEFAULT_INITIAL_RATING = 1500;
 const AGGREGATION_MODES = ["sum", "max", "mean", "geometric-mean"];
