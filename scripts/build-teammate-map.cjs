@@ -2,9 +2,9 @@ const path = require("path");
 const crypto = require("crypto");
 const { collectStaticRanklistFiles, normalize, readJson, resolveText, writeJson } = require("./lib/ranklist-utils.cjs");
 
-function pairHashId(organization, memberName) {
+function pairHashId(organization, name) {
   const orgNorm = normalize(organization).toLowerCase();
-  const memberNorm = normalize(memberName).toLowerCase();
+  const memberNorm = normalize(name).toLowerCase();
   const raw = `${orgNorm}\u0001${memberNorm}`;
   const digest = crypto.createHash("sha256").update(raw, "utf8").digest("hex");
   return `xcpc_${digest.slice(0, 16)}`;
@@ -28,17 +28,17 @@ function buildTeammateOrganizationMap(staticRootDir, outputFile) {
       }
 
       for (const member of teamMembers) {
-        const memberName = normalize(resolveText(member && member.name));
-        if (!memberName) {
+        const name = normalize(resolveText(member && member.name));
+        if (!name) {
           continue;
         }
 
-        const key = `${organization}\u0001${memberName}`;
+        const key = `${organization}\u0001${name}`;
         if (!pairMap.has(key)) {
           pairMap.set(key, {
-            id: pairHashId(organization, memberName),
+            id: pairHashId(organization, name),
             organization,
-            memberName: memberName,
+            name,
             contests: new Set(),
             appearances: 0,
           });
@@ -55,7 +55,7 @@ function buildTeammateOrganizationMap(staticRootDir, outputFile) {
     .map((item) => ({
       id: item.id,
       organization: item.organization,
-      memberName: item.memberName,
+      name: item.name,
       appearances: item.appearances,
       contests: [...item.contests].sort(),
     }))
@@ -65,7 +65,7 @@ function buildTeammateOrganizationMap(staticRootDir, outputFile) {
   for (const entry of entries) {
     mappingById[entry.id] = {
       organization: entry.organization,
-      memberName: entry.memberName,
+      name: entry.name,
       appearances: entry.appearances,
       contests: entry.contests,
     };

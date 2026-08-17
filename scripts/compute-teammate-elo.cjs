@@ -17,13 +17,13 @@ const {
 } = require("./lib/ranklist-utils.cjs");
 const { getPinyinInitials } = require("./lib/pinyin-utils.cjs");
 
-function pairKey(organization, memberName) {
-  return `${organization}\u0001${memberName}`;
+function pairKey(organization, name) {
+  return `${organization}\u0001${name}`;
 }
 
-function pairHashId(organization, memberName) {
+function pairHashId(organization, name) {
   const orgNorm = normalize(organization).toLowerCase();
-  const memberNorm = normalize(memberName).toLowerCase();
+  const memberNorm = normalize(name).toLowerCase();
   const raw = `${orgNorm}\u0001${memberNorm}`;
   const digest = crypto.createHash("sha256").update(raw, "utf8").digest("hex");
   return `xcpc_${digest.slice(0, 16)}`;
@@ -38,16 +38,16 @@ function buildTeammateIndex(teammateMap) {
   for (const entry of entries) {
     const id = `${entry && entry.id ? entry.id : ""}`.trim();
     const organization = normalize(entry && entry.organization);
-    const memberName = normalize(entry && entry.memberName);
-    if (!id || !organization || !memberName) {
+    const name = normalize(entry && entry.name);
+    if (!id || !organization || !name) {
       continue;
     }
 
-    const key = pairKey(organization, memberName);
+    const key = pairKey(organization, name);
     byId.set(id, {
       id,
       organization,
-      memberName,
+      name: name,
       fromMap: true,
     });
     byPair.set(key, id);
@@ -57,9 +57,9 @@ function buildTeammateIndex(teammateMap) {
   return { byId, byPair, byPairLower };
 }
 
-function resolveTeammateId(organization, memberName, teammateIndex) {
+function resolveTeammateId(organization, name, teammateIndex) {
   const org = normalize(organization);
-  const member = normalize(memberName);
+  const member = normalize(name);
   if (!org || !member) {
     return null;
   }
@@ -80,7 +80,7 @@ function resolveTeammateId(organization, memberName, teammateIndex) {
     teammateIndex.byId.set(id, {
       id,
       organization: org,
-      memberName: member,
+      name: member,
       fromMap: false,
     });
   }
@@ -111,8 +111,8 @@ function buildContestParticipants(ranklist, contestKey, teammateIndex, unresolve
     }
 
     for (const member of teamMembers) {
-      const memberName = normalize(resolveText(member && member.name));
-      if (!memberName) {
+      const name = normalize(resolveText(member && member.name));
+      if (!name) {
         unresolvedEntries.push({
           contestKey,
           rank,
@@ -121,14 +121,14 @@ function buildContestParticipants(ranklist, contestKey, teammateIndex, unresolve
         continue;
       }
 
-      const id = resolveTeammateId(organization, memberName, teammateIndex);
+      const id = resolveTeammateId(organization, name, teammateIndex);
       if (!id) {
         unresolvedEntries.push({
           contestKey,
           rank,
           reason: "unresolvable-member",
           organization,
-          memberName,
+          name,
         });
         continue;
       }
@@ -187,7 +187,7 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
     playerStates.set(entry.id, {
       id: entry.id,
       organization: entry.organization,
-      name: entry.memberName,
+      name: entry.name,
       rating: initialRating,
       maxRating: initialRating,
       history: [],
@@ -217,7 +217,7 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
       id: state.id,
       organization: state.organization,
       name: state.name,
-      pinyinInitials: getPinyinInitials(state.memberName),
+      pinyinInitials: getPinyinInitials(state.name),
       history: state.history,
     }))
     .sort(
