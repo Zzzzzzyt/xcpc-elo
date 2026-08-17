@@ -42,6 +42,7 @@ async function computeAllStaticRanklists(collectionDir, outputDir) {
   const failures = [];
   const excludedItems = [];
   const invalidNameItems = [];
+  const generatedSourcePaths = {};
   const seenTitleEntries = new Map();
 
   for (const entry of files) {
@@ -118,6 +119,7 @@ async function computeAllStaticRanklists(collectionDir, outputDir) {
       }
 
       writeJson(outFilePath, staticRanklist);
+      generatedSourcePaths[path.basename(outFilePath)] = entry.relativeFilePath.replace(/\\/g, "/");
       generatedCount += 1;
     } catch (error) {
       failures.push({
@@ -147,6 +149,7 @@ async function computeAllStaticRanklists(collectionDir, outputDir) {
   };
 
   writeJson(path.join(outputDir, "_summary.json"), summary);
+  writeJson(path.join(outputDir, "_source-map.json"), generatedSourcePaths);
   writeJson(path.join(outputDir, "_invalid-teammates.json"), invalidNameItems);
   return summary;
 }

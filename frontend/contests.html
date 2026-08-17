@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>比赛详情 · XCPC ELO</title>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="layout">
+      <header class="hero panel">
+        <h1>比赛详情</h1>
+        <p id="subtitle">正在加载数据...</p>
+        <a class="page-link" href="./index.html">返回选手总览</a>
+      </header>
+      <section class="panel content-panel">
+        <div class="contest-filters">
+          <select id="seriesSelect" aria-label="筛选比赛系列">
+            <option value="">全部系列</option>
+          </select>
+          <select id="yearSelect" aria-label="筛选年份">
+            <option value="">全部年份</option>
+          </select>
+          <select id="contestSelect" aria-label="选择比赛"></select>
+        </div>
+        <div>
+          <h2 id="contestTitle">选择比赛</h2>
+          <p id="contestMeta" class="hint"></p>
+        </div>
+        <div id="contestDiagnostics" class="diagnostic-grid"></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Seed</th>
+                <th>选手</th>
+                <th>学校</th>
+                <th>赛前分</th>
+                <th>表现分</th>
+                <th>变化</th>
+                <th>赛后分</th>
+              </tr>
+            </thead>
+            <tbody id="contestParticipantsBody"></tbody>
+          </table>
+        </div>
+        <p id="contestHint" class="hint"></p>
+      </section>
+    </main>
+    <script src="./data.js"></script>
+    <script src="./contests.js"></script>
+  </body>
+</html>

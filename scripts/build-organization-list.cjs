@@ -23,7 +23,7 @@ function buildOrganizationList(teammateMapFile, outputFile) {
     organizations,
   };
 
-  writeJson(outputFile, output);
+  writeJson(outputFile, output, true);
   return output;
 }
 
@@ -38,9 +38,4 @@ function main() {
   console.log(`Saved organization list to: ${outputFile}`);
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(error && error.message ? error.message : String(error));
-  process.exit(1);
-}
+main();

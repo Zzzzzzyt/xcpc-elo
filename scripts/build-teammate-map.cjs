@@ -80,7 +80,7 @@ function buildTeammateOrganizationMap(staticRootDir, outputFile) {
     mappingById,
   };
 
-  writeJson(outputFile, output);
+  writeJson(outputFile, output, true);
   return output;
 }
 
@@ -94,9 +94,4 @@ function main() {
   console.log(`Saved mapping to: ${outputFile}`);
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(error && error.message ? error.message : String(error));
-  process.exit(1);
-}
+main();

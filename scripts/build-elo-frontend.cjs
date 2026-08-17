@@ -30,12 +30,16 @@ function buildFrontend(inputJsonFile, templateDir, outputDir) {
   const indexHtml = readText(path.join(templateDir, "index.html"));
   const stylesCss = readText(path.join(templateDir, "styles.css"));
   const appJs = readText(path.join(templateDir, "app.js"));
+  const contestsHtml = readText(path.join(templateDir, "contests.html"));
+  const contestsJs = readText(path.join(templateDir, "contests.js"));
   const faviconSvg = readText(path.join(templateDir, "favicon.svg"));
 
   ensureDir(outputDir);
   writeText(path.join(outputDir, "index.html"), indexHtml);
   writeText(path.join(outputDir, "styles.css"), stylesCss);
   writeText(path.join(outputDir, "app.js"), appJs);
+  writeText(path.join(outputDir, "contests.html"), contestsHtml);
+  writeText(path.join(outputDir, "contests.js"), contestsJs);
   writeText(path.join(outputDir, "favicon.svg"), faviconSvg);
   writeText(path.join(outputDir, "data.js"), `window.__ELO_DATA__ = ${JSON.stringify(data)};\n`);
 
@@ -59,9 +63,4 @@ function main() {
   console.log(`Contests loaded: ${result.contests}`);
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(error && error.message ? error.message : String(error));
-  process.exit(1);
-}
+main();

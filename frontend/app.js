@@ -11,15 +11,26 @@
   const initialRating = data.config && typeof data.config.initialRating === "number" ? data.config.initialRating : 1500;
   const eloScale = data.config && typeof data.config.eloScale === "number" ? data.config.eloScale : 800;
   const players = data.players.map((player) => {
+    player.history = player.history.map((event) => {
+      return {
+        contestId: event[0],
+        contest: contests[event[0]] || null,
+        rank: event[1],
+        delta: event[2],
+        newRating: event[3],
+        performanceRating: event[4],
+        seed: event[5],
+      };
+    });
     const historicalTopRating = computeHistoricalTopRating(player);
     const lastCompetedTimestamp = computeLastCompetedTimestamp(player);
     const pinyinInitials = normalizeSearchToken(player.pinyinInitials);
     return {
-      ...player,
       pinyinInitials,
       historicalTopRating,
       lastCompetedTimestamp,
       searchText: normalizeSearchToken(`${player.teamMember}-${player.organization}-${pinyinInitials}`),
+      ...player,
     };
   });
   const globalRankByCurrent = new Map(
@@ -217,12 +228,12 @@
   function buildRatingSequence(player) {
     const sequence = [{ label: "初始分", rating: initialRating, date: null }];
     for (const event of player.history) {
-      const contest = contests[event[0]] || null;
+      const contest = event.contest;
       sequence.push({
-        label: contest && contest.title ? contest.title : `比赛 #${event[0]}`,
+        label: contest && contest.title ? contest.title : `比赛 #${event.contestId}`,
         date: contest && contest.startAt ? contest.startAt : null,
-        rating: event[3],
-        delta: event[2],
+        rating: event.newRating,
+        delta: event.delta,
       });
     }
     return sequence;
@@ -298,17 +309,17 @@
 
     historyBody.innerHTML = visible
       .map((event) => {
-        const contest = contests[event[0]] || null;
-        const delta = event[2];
+        const contest = event.contest;
+        const delta = event.delta;
         const deltaClass = delta > 0 ? "delta-positive" : delta < 0 ? "delta-negative" : "delta-neutral";
         const dateText = contest && contest.startAt ? new Date(contest.startAt).toLocaleDateString("zh-CN") : "-";
         return `
           <tr>
-            <td>${escapeHtml(contest && contest.title ? contest.title : `比赛 #${event[0]}`)}</td>
+            <td>${escapeHtml(contest && contest.title ? contest.title : `比赛 #${event.contestId}`)}</td>
             <td class="mono">${escapeHtml(dateText)}</td>
-            <td class="mono">${event[1]}</td>
+            <td class="mono">${event.rank}</td>
             <td class="${deltaClass} mono">${formatDelta(delta)}</td>
-            <td class="mono">${formatRatingColored(event[3], event[3])}</td>
+            <td class="mono">${formatRatingColored(event.newRating, event.newRating)}</td>
           </tr>
         `;
       })
@@ -327,8 +338,8 @@
     }
     let best = Number.NEGATIVE_INFINITY;
     for (const event of history) {
-      if (Array.isArray(event) && typeof event[3] === "number" && event[3] > best) {
-        best = event[3];
+      if (event.newRating > best) {
+        best = event.newRating;
       }
     }
     if (!Number.isFinite(best)) {
@@ -341,10 +352,7 @@
     const history = Array.isArray(player && player.history) ? player.history : [];
     let latest = null;
     for (const event of history) {
-      if (!Array.isArray(event) || typeof event[0] !== "number") {
-        continue;
-      }
-      const timestamp = contestTimestampByIndex[event[0]];
+      const timestamp = contestTimestampByIndex[event.contestId];
       if (typeof timestamp !== "number") {
         continue;
       }
@@ -419,7 +427,7 @@
 
   function formatRatingColored(rating, text) {
     if (typeof rating === "number") {
-      return colorizeValue(rating, escapeHtml(`${text}`));
+      return colorizeRating(rating, escapeHtml(`${text}`));
     }
     return escapeHtml(`${text}`);
   }
@@ -429,6 +437,20 @@
       return "未知";
     }
     return new Date(value).toLocaleDateString("zh-CN");
+  }
+
+  function formatContestDiagnostics(diagnostics) {
+    if (!diagnostics || typeof diagnostics !== "object") {
+      return "-";
+    }
+
+    const firstTimeParticipants = Number.isFinite(diagnostics.firstTimeParticipants)
+      ? diagnostics.firstTimeParticipants.toLocaleString()
+      : "-";
+    const deltaSum = Number.isFinite(diagnostics.deltaSum) ? formatDelta(diagnostics.deltaSum) : "-";
+    const topCount = Number.isFinite(diagnostics.topCount) ? diagnostics.topCount.toLocaleString() : "-";
+    const topDeltaSum = Number.isFinite(diagnostics.topDeltaSum) ? formatDelta(diagnostics.topDeltaSum) : "-";
+    return `首参 ${firstTimeParticipants} | Δ和 ${deltaSum} | Top ${topCount} / ${topDeltaSum}`;
   }
 
   function escapeHtml(value) {
@@ -453,7 +475,8 @@
     return "legendary grandmaster";
   }
 
-  function colorizeValue(rating, value) {
+  function colorizeRating(rating, value) {
+    value = `${value}`;
     if (rating < 1200) return `<span style="color: var(--rating-color-0)">${value}</span>`;
     if (rating < 1400) return `<span style="color: var(--rating-color-1)">${value}</span>`;
     if (rating < 1600) return `<span style="color: var(--rating-color-2)">${value}</span>`;

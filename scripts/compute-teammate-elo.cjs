@@ -94,6 +94,7 @@ function resolveTeammateId(organization, teamMember, teammateIndex) {
 function buildContestParticipants(ranklist, contestKey, teammateIndex, unresolvedEntries) {
   const rows = Array.isArray(ranklist && ranklist.rows) ? ranklist.rows : [];
   const rankById = new Map();
+  const output = [];
 
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index];
@@ -101,6 +102,7 @@ function buildContestParticipants(ranklist, contestKey, teammateIndex, unresolve
     const user = row && row.user ? row.user : {};
     const organization = normalize(resolveText(user.organization));
     const teamMembers = Array.isArray(user.teamMembers) ? user.teamMembers : [];
+    const outputMembers = [];
     if (!organization || !teamMembers.length) {
       unresolvedEntries.push({
         contestKey,
@@ -110,7 +112,6 @@ function buildContestParticipants(ranklist, contestKey, teammateIndex, unresolve
       continue;
     }
 
-    const rowIds = new Set();
     for (const member of teamMembers) {
       const teamMember = normalize(resolveText(member && member.name));
       if (!teamMember) {
@@ -133,25 +134,20 @@ function buildContestParticipants(ranklist, contestKey, teammateIndex, unresolve
         });
         continue;
       }
-      rowIds.add(id);
+      outputMembers.push(id);
     }
-
-    for (const id of rowIds) {
-      if (!rankById.has(id)) {
-        rankById.set(id, rank);
-      }
-    }
+    output.push({ rank, members: outputMembers });
   }
 
-  return [...rankById.entries()]
-    .map(([id, rank]) => ({ id, rank }))
-    .sort((a, b) => a.rank - b.rank || a.id.localeCompare(b.id));
+  return output;
 }
 
 function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRating) {
   const teammateMap = readJson(teammateMapFile);
   const teammateIndex = buildTeammateIndex(teammateMap);
   const staticFiles = collectStaticRanklistFiles(staticRootDir);
+  const sourceMapFile = path.join(staticRootDir, "_source-map.json");
+  const sourceMap = require("fs").existsSync(sourceMapFile) ? readJson(sourceMapFile) : {};
 
   const unresolvedEntries = [];
   const skippedInvalidContests = [];
@@ -164,14 +160,23 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
     const title = resolveText(contest.title) || contestKey;
 
     const participants = buildContestParticipants(ranklist, contestKey, teammateIndex, unresolvedEntries);
-    contests.push({
-      key: contestKey,
-      file: path.relative(staticRootDir, filePath).replace(/\\/g, "/"),
-      title,
-      startAt: contest.startAt || null,
-      timestamp: parseContestTimestamp(contest),
-      participants,
-    });
+    if (participants.length > 0) {
+      contests.push({
+        key: contestKey,
+        file: path.relative(staticRootDir, filePath).replace(/\\/g, "/"),
+        sourcePath: sourceMap[path.basename(filePath)] || null,
+        title,
+        startAt: contest.startAt || null,
+        timestamp: parseContestTimestamp(contest),
+        participants,
+      });
+    } else {
+      skippedInvalidContests.push({
+        key: contestKey,
+        file: path.relative(staticRootDir, filePath).replace(/\\/g, "/"),
+        reason: "no-valid-participants",
+      });
+    }
   }
 
   contests.sort((a, b) => a.timestamp - b.timestamp || a.key.localeCompare(b.key));
@@ -197,22 +202,11 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
 
   let totalRatingEvents = 0;
   for (const contest of contests) {
-    const updates = applyCodeforcesUpdate(contest.participants, (id) => {
-      if (!playerStates.has(id)) {
-        const indexEntry = teammateIndex.byId.get(id) || {};
-        playerStates.set(id, {
-          id,
-          organization: normalize(indexEntry.organization),
-          teamMember: normalize(indexEntry.teamMember),
-          mapAppearances: indexEntry.appearances || 0,
-          rating: initialRating,
-          maxRating: initialRating,
-          minRating: initialRating,
-          contests: 0,
-          history: [],
-          lastDelta: 0,
-        });
-      }
+    const firstTimeParticipantCount = contest.participants.reduce((count, participant) => {
+      const state = playerStates.get(participant.id);
+      return count + (state && state.contests === 0 ? 1 : 0);
+    }, 0);
+    const [updates, diagnostics] = applyCodeforcesUpdate(contest.participants, (id) => {
       return playerStates.get(id).rating;
     });
 
@@ -224,9 +218,14 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
       state.minRating = Math.min(state.minRating, newRating);
       state.contests += 1;
       state.lastDelta = item.delta;
-      state.history.push([contest.index, item.rank, item.delta, newRating]);
+      state.history.push([contest.index, item.rank, item.delta, newRating, item.performanceRating, item.seed]);
       totalRatingEvents += 1;
     }
+
+    contest.diagnostics = {
+      firstTimeParticipants: firstTimeParticipantCount,
+      ...diagnostics,
+    };
   }
 
   const players = [...playerStates.values()]
@@ -284,16 +283,18 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
       index: contest.index,
       key: contest.key,
       file: contest.file,
+      sourcePath: contest.sourcePath,
       title: contest.title,
       startAt: contest.startAt,
       participantCount: contest.participants.length,
+      diagnostics: contest.diagnostics || null,
     })),
     players,
     skippedInvalidContests,
     unresolvedSummary,
   };
 
-  writeJson(outputFile, output);
+  writeJson(outputFile, output, true);
   return output;
 }
 
@@ -312,9 +313,4 @@ function main() {
   console.log(`Saved teammate Elo data to: ${outputFile}`);
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(error && error.message ? error.message : String(error));
-  process.exit(1);
-}
+main();

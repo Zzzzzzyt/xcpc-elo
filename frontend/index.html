@@ -27,10 +27,11 @@
           </svg>
         </a>
         <p id="subtitle">正在加载数据...</p>
+        <a class="page-link" href="./contests.html">查看比赛详情</a>
       </header>
 
       <section class="content-grid">
-        <section class="panel leaderboard">
+        <section class="panel content-panel">
           <div class="panel-head">
             <div class="controls">
               <input id="searchInput" type="search" placeholder="按姓名 / 拼音首字母 / 学校搜索..." />
@@ -65,7 +66,7 @@
           <p id="leaderboardHint" class="hint"></p>
         </section>
 
-        <section class="panel player-detail">
+        <section class="panel content-panel">
           <h2 id="playerName">选手详情</h2>
           <p id="playerMeta"></p>
           <div class="chart-wrap">
@@ -85,9 +86,10 @@
               <tbody id="historyBody"></tbody>
             </table>
           </div>
-          <p id="historyHint" class="hint"></p>
+        <p id="historyHint" class="hint"></p>
         </section>
       </section>
+
     </main>
 
     <script src="./data.js"></script>

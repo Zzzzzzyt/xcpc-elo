@@ -18,10 +18,10 @@
 
   --rating-color-0: gray;
   --rating-color-1: green;
-  --rating-color-2: #03A89E;
+  --rating-color-2: #03a89e;
   --rating-color-3: blue;
   --rating-color-4: #a0a;
-  --rating-color-5: #FF8C00;
+  --rating-color-5: #ff8c00;
   --rating-color-6: red;
   --rating-color-7: red;
   --rating-color-8: red;
@@ -85,14 +85,6 @@ body {
   color: var(--ink);
 }
 
-.eyebrow {
-  margin: 0 0 8px;
-  font-size: 12px;
-  letter-spacing: 0.12em;
-  color: var(--accent);
-  font-weight: 700;
-}
-
 h1,
 h2 {
   margin: 0;
@@ -115,8 +107,7 @@ h1 {
   grid-template-columns: 50% 50%;
 }
 
-.leaderboard,
-.player-detail {
+.content-panel {
   min-height: 72vh;
   padding: 14px;
 }
@@ -179,6 +170,56 @@ button {
 
 button:hover {
   background: var(--accent-lighter);
+}
+
+.page-link {
+  display: inline-block;
+  margin-top: 12px;
+  color: var(--accent);
+  font-weight: 600;
+}
+.contest-filters {
+  display: grid;
+  grid-template-columns: 140px 140px 1fr;
+  gap: 10px;
+  margin: 16px 0;
+}
+.contest-filters select {
+  min-width: 140px;
+}
+.diagnostic-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 16px 0;
+}
+.diagnostic-card {
+  border: 1px solid var(--border);
+  background: var(--surface-light);
+  padding: 12px;
+  border-radius: 8px;
+}
+.diagnostic-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+.diagnostic-card strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 1.2rem;
+}
+@media (max-width: 700px) {
+  .diagnostic-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .contest-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .contest-filters {
+    grid-template-columns: auto;
+  }
 }
 
 input:focus,
@@ -296,7 +337,7 @@ tbody tr.active {
     --rating-color-2: #3cc;
     --rating-color-3: #66f;
     --rating-color-4: #c3c;
-    --rating-color-5: #FF8C00;
+    --rating-color-5: #ff8c00;
     --rating-color-6: #f66;
     --rating-color-7: #f66;
     --rating-color-8: #f66;
@@ -317,8 +358,7 @@ tbody tr.active {
     grid-template-columns: 1fr;
   }
 
-  .leaderboard,
-  .player-detail {
+  .content-panel {
     min-height: auto;
   }
 

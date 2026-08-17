@@ -72,9 +72,10 @@ function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
 }
 
-function writeJson(filePath, value) {
+function writeJson(filePath, value, minify = false) {
   ensureDir(path.dirname(filePath));
-  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  const jsonString = minify ? JSON.stringify(value) : JSON.stringify(value, null, 2);
+  fs.writeFileSync(filePath, jsonString, "utf8");
 }
 
 function resolveText(value) {
