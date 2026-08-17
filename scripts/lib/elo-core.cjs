@@ -76,9 +76,14 @@ function buildSeedModel(rows) {
   };
 }
 
-function applyCodeforcesUpdate(participants, getRating) {
+function applyCodeforcesUpdate(participants, playerStates) {
   if (participants.length < 2) {
     throw new Error("Not enough participants.");
+  }
+
+  function getRating(memberId) {
+    const state = playerStates.get(memberId);
+    return state.rating;
   }
 
   function calculateTeamRating(team) {
@@ -149,33 +154,26 @@ function applyCodeforcesUpdate(participants, getRating) {
 
   const sumDeltaFinal = output.reduce((acc, row) => acc + row.delta, 0);
 
-  const diagnostics = {
+  const firstTimeParticipantCount = output.reduce((count, participant) => {
+    const state = playerStates.get(participant.id);
+    return count + (state && state.history.length === 0 ? 1 : 0);
+  }, 0);
+
+  const statistics = {
+    firstTimeParticipantCount,
     adjustment1: inc1,
     adjustment2: inc2,
     topCount,
     sumDeltaFinal,
   };
 
-  return [output, diagnostics];
-}
-
-function ratingTitle(rating) {
-  if (rating < 1200) return "newbie";
-  if (rating < 1400) return "pupil";
-  if (rating < 1600) return "specialist";
-  if (rating < 1900) return "expert";
-  if (rating < 2100) return "candidate master";
-  if (rating < 2300) return "master";
-  if (rating < 2400) return "international master";
-  if (rating < 2600) return "grandmaster";
-  if (rating < 3000) return "international grandmaster";
-  return "legendary grandmaster";
+  return [output, statistics];
 }
 
 module.exports = {
   applyCodeforcesUpdate,
   parseContestTimestamp,
-  ratingTitle,
   DEFAULT_INITIAL_RATING,
   ELO_SCALE,
+  ELO_UPDATE_FACTOR,
 };

@@ -187,30 +187,30 @@ button:hover {
 .contest-filters select {
   min-width: 140px;
 }
-.diagnostic-grid {
+.statistic-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 10px;
   margin: 16px 0;
 }
-.diagnostic-card {
+.statistic-card {
   border: 1px solid var(--border);
   background: var(--surface-light);
   padding: 12px;
   border-radius: 8px;
 }
-.diagnostic-card span {
+.statistic-card span {
   display: block;
   color: var(--muted);
   font-size: 12px;
 }
-.diagnostic-card strong {
+.statistic-card strong {
   display: block;
   margin-top: 5px;
   font-size: 1.2rem;
 }
 @media (max-width: 700px) {
-  .diagnostic-grid {
+  .statistic-grid {
     grid-template-columns: repeat(2, 1fr);
   }
   .contest-head {
@@ -237,11 +237,11 @@ button:focus {
 }
 
 .table-wrap.teammate-table {
-  max-height: calc(100vh - 370px);
+  max-height: calc(100vh - 380px);
 }
 
 .table-wrap.history-table {
-  max-height: calc(100vh - 590px);
+  max-height: calc(100vh - 620px);
 }
 
 table {

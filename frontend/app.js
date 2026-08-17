@@ -8,8 +8,9 @@
 
   const contests = data.contests;
   const contestTimestampByIndex = contests.map((contest) => parseContestStartTimestamp(contest && contest.startAt));
-  const initialRating = data.config && typeof data.config.initialRating === "number" ? data.config.initialRating : 1500;
-  const eloScale = data.config && typeof data.config.eloScale === "number" ? data.config.eloScale : 800;
+  const initialRating = data.config.initialRating;
+  const eloScale = data.config.eloScale;
+  const eloUpdateFactor = data.config.eloUpdateFactor;
   const players = data.players.map((player) => {
     player.history = player.history.map((event) => {
       return {
@@ -22,14 +23,19 @@
         seed: event[5],
       };
     });
-    const historicalTopRating = computeHistoricalTopRating(player);
+    const maxRating = computeMaxRating(player);
+    const rating = player.history[player.history.length - 1].newRating;
+    const lastDelta = player.history[player.history.length - 1].delta;
     const lastCompetedTimestamp = computeLastCompetedTimestamp(player);
     const pinyinInitials = normalizeSearchToken(player.pinyinInitials);
     return {
       pinyinInitials,
-      historicalTopRating,
+      rating,
+      maxRating,
+      lastDelta,
       lastCompetedTimestamp,
-      searchText: normalizeSearchToken(`${player.teamMember}-${player.organization}-${pinyinInitials}`),
+      contests: player.history.length,
+      searchText: normalizeSearchToken(`${player.name}-${player.organization}-${pinyinInitials}`),
       ...player,
     };
   });
@@ -101,7 +107,7 @@
   }
 
   function renderSummary() {
-    subtitle.textContent = `共 ${data.totals.players.toLocaleString()} 名选手，${data.totals.contests.toLocaleString()} 场比赛, 生成时间: ${new Date(data.generatedAt).toLocaleString("zh-CN")}，ELO 初始分: ${initialRating}，ELO 缩放系数: ${eloScale}`;
+    subtitle.textContent = `共 ${data.totals.players.toLocaleString()} 名选手，${data.totals.contests.toLocaleString()} 场比赛，生成时间: ${new Date(data.generatedAt).toLocaleString("zh-CN")}，ELO 初始分: ${initialRating}，ELO 缩放系数: ${eloScale}，ELO 更新系数: ${eloUpdateFactor}`;
     const topHistorical = players.reduce(
       (best, player) => (topScore(player) > best ? topScore(player) : best),
       Number.NEGATIVE_INFINITY,
@@ -161,10 +167,10 @@
         return `
           <tr class="${selected}" data-player-id="${escapeHtml(player.id)}">
             <td class="mono">${shownRank}</td>
-            <td>${escapeHtml(player.teamMember || player.id)}</td>
+            <td>${escapeHtml(player.name || player.id)}</td>
             <td>${escapeHtml(player.organization || "")}</td>
             <td class="mono">${formatRatingColored(player.rating, player.rating)}</td>
-            <td class="mono">${formatRatingColored(player.historicalTopRating, formatTopRating(player.historicalTopRating))}</td>
+            <td class="mono">${formatRatingColored(player.maxRating, formatTopRating(player.maxRating))}</td>
             <td class="${deltaClass} mono">${formatDelta(player.lastDelta || 0)}</td>
             <td class="mono">${player.contests}</td>
           </tr>
@@ -200,10 +206,10 @@
     }
 
     const globalRank = globalRankByCurrent.get(player.id);
-    playerName.textContent = `${player.organization || "未知组织"} - ${player.teamMember}`;
+    playerName.textContent = `${player.organization || "未知组织"} - ${player.name}`;
     playerMeta.innerHTML = `当前排名 #${globalRank} | 当前分 ${formatRatingColored(player.rating, player.rating)} | 历史最高 ${formatRatingColored(
-      player.historicalTopRating,
-      formatTopRating(player.historicalTopRating),
+      player.maxRating,
+      formatTopRating(player.maxRating),
     )} | 参赛 ${player.contests} 场 | 最后参赛 ${formatDateOnly(player.lastCompetedTimestamp)}`;
 
     drawChart(player);
@@ -331,19 +337,16 @@
         : `历史比赛总数：${history.length}。`;
   }
 
-  function computeHistoricalTopRating(player) {
-    const history = Array.isArray(player && player.history) ? player.history : [];
-    if (!history.length) {
-      return null;
+  function computeMaxRating(player) {
+    const history = player.history;
+    if (!history || !history.length) {
+      throw new Error("empty history");
     }
     let best = Number.NEGATIVE_INFINITY;
     for (const event of history) {
       if (event.newRating > best) {
         best = event.newRating;
       }
-    }
-    if (!Number.isFinite(best)) {
-      return null;
     }
     return best;
   }
@@ -354,7 +357,7 @@
     for (const event of history) {
       const timestamp = contestTimestampByIndex[event.contestId];
       if (typeof timestamp !== "number") {
-        continue;
+        throw new Error(`invalid contestId ${event.contestId} timestamp ${timestamp}`);
       }
       if (latest === null || timestamp > latest) {
         latest = timestamp;
@@ -393,7 +396,7 @@
   }
 
   function topScore(player) {
-    return typeof player.historicalTopRating === "number" ? player.historicalTopRating : Number.NEGATIVE_INFINITY;
+    return typeof player.maxRating === "number" ? player.maxRating : Number.NEGATIVE_INFINITY;
   }
 
   function getChartTheme() {
@@ -439,17 +442,17 @@
     return new Date(value).toLocaleDateString("zh-CN");
   }
 
-  function formatContestDiagnostics(diagnostics) {
-    if (!diagnostics || typeof diagnostics !== "object") {
+  function formatContestStatistics(statistics) {
+    if (!statistics || typeof statistics !== "object") {
       return "-";
     }
 
-    const firstTimeParticipants = Number.isFinite(diagnostics.firstTimeParticipants)
-      ? diagnostics.firstTimeParticipants.toLocaleString()
+    const firstTimeParticipants = Number.isFinite(statistics.firstTimeParticipants)
+      ? statistics.firstTimeParticipants.toLocaleString()
       : "-";
-    const deltaSum = Number.isFinite(diagnostics.deltaSum) ? formatDelta(diagnostics.deltaSum) : "-";
-    const topCount = Number.isFinite(diagnostics.topCount) ? diagnostics.topCount.toLocaleString() : "-";
-    const topDeltaSum = Number.isFinite(diagnostics.topDeltaSum) ? formatDelta(diagnostics.topDeltaSum) : "-";
+    const deltaSum = Number.isFinite(statistics.deltaSum) ? formatDelta(statistics.deltaSum) : "-";
+    const topCount = Number.isFinite(statistics.topCount) ? statistics.topCount.toLocaleString() : "-";
+    const topDeltaSum = Number.isFinite(statistics.topDeltaSum) ? formatDelta(statistics.topDeltaSum) : "-";
     return `首参 ${firstTimeParticipants} | Δ和 ${deltaSum} | Top ${topCount} / ${topDeltaSum}`;
   }
 

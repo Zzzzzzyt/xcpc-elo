@@ -2,9 +2,9 @@ const path = require("path");
 const crypto = require("crypto");
 const { collectStaticRanklistFiles, normalize, readJson, resolveText, writeJson } = require("./lib/ranklist-utils.cjs");
 
-function pairHashId(organization, teamMember) {
+function pairHashId(organization, memberName) {
   const orgNorm = normalize(organization).toLowerCase();
-  const memberNorm = normalize(teamMember).toLowerCase();
+  const memberNorm = normalize(memberName).toLowerCase();
   const raw = `${orgNorm}\u0001${memberNorm}`;
   const digest = crypto.createHash("sha256").update(raw, "utf8").digest("hex");
   return `xcpc_${digest.slice(0, 16)}`;
@@ -28,17 +28,17 @@ function buildTeammateOrganizationMap(staticRootDir, outputFile) {
       }
 
       for (const member of teamMembers) {
-        const teamMember = normalize(resolveText(member && member.name));
-        if (!teamMember) {
+        const memberName = normalize(resolveText(member && member.name));
+        if (!memberName) {
           continue;
         }
 
-        const key = `${organization}\u0001${teamMember}`;
+        const key = `${organization}\u0001${memberName}`;
         if (!pairMap.has(key)) {
           pairMap.set(key, {
-            id: pairHashId(organization, teamMember),
+            id: pairHashId(organization, memberName),
             organization,
-            teamMember,
+            memberName: memberName,
             contests: new Set(),
             appearances: 0,
           });
@@ -55,7 +55,7 @@ function buildTeammateOrganizationMap(staticRootDir, outputFile) {
     .map((item) => ({
       id: item.id,
       organization: item.organization,
-      teamMember: item.teamMember,
+      memberName: item.memberName,
       appearances: item.appearances,
       contests: [...item.contests].sort(),
     }))
@@ -65,7 +65,7 @@ function buildTeammateOrganizationMap(staticRootDir, outputFile) {
   for (const entry of entries) {
     mappingById[entry.id] = {
       organization: entry.organization,
-      teamMember: entry.teamMember,
+      memberName: entry.memberName,
       appearances: entry.appearances,
       contests: entry.contests,
     };

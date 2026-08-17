@@ -11,7 +11,7 @@
   const yearSelect = document.getElementById("yearSelect");
   const title = document.getElementById("contestTitle");
   const meta = document.getElementById("contestMeta");
-  const diagnostics = document.getElementById("contestDiagnostics");
+  const statistics = document.getElementById("contestStatistics");
   const body = document.getElementById("contestParticipantsBody");
   const hint = document.getElementById("contestHint");
   document.getElementById("subtitle").textContent = `共 ${data.contests.length.toLocaleString()} 场比赛`;
@@ -55,7 +55,7 @@
     if (!select.value) {
       title.textContent = "没有符合筛选条件的比赛";
       meta.textContent = "请调整比赛系列或年份。";
-      diagnostics.innerHTML = "";
+      statistics.innerHTML = "";
       body.innerHTML = "";
       hint.textContent = "";
       return;
@@ -79,16 +79,16 @@
     participants.sort((a, b) => (a.rank || Number.MAX_SAFE_INTEGER) - (b.rank || Number.MAX_SAFE_INTEGER));
     title.textContent = contest.title || `比赛 #${index}`;
     meta.textContent = `${contest.startAt ? new Date(contest.startAt).toLocaleString("zh-CN") : "日期未知"} · ${participants.length} 名参赛选手`;
-    const d = contest.diagnostics || {};
-    diagnostics.innerHTML = [
-      ["首次参赛", d.firstTimeParticipants],
-      ["变化合计", signed(d.sumDeltaFinal)],
+    const d = contest.statistics || {};
+    statistics.innerHTML = [
+      ["首次参赛", d.firstTimeParticipantCount],
+      ["Delta 合计", signed(d.sumDeltaFinal)],
       ["Delta 调整", d.adjustment1],
-      ["Top 选手", Number.isFinite(d.topCount) ? `${d.topCount}（${signed(d.adjustment2)}）` : "-"],
+      ["Top 调整", Number.isFinite(d.topCount) ? `${d.topCount}（${signed(d.adjustment2)}）` : "-"],
     ]
       .map(
         ([label, value]) =>
-          `<div class="diagnostic-card"><span>${label}</span><strong>${Number.isFinite(value) ? value.toLocaleString() : (value ?? "-")}</strong></div>`,
+          `<div class="statistic-card"><span>${label}</span><strong>${Number.isFinite(value) ? value.toLocaleString() : (value ?? "-")}</strong></div>`,
       )
       .join("");
     body.innerHTML = participants
@@ -97,8 +97,8 @@
         const deltaClass = delta > 0 ? "delta-positive" : delta < 0 ? "delta-negative" : "delta-neutral";
         return `<tr>
           <td class="mono">${rank}</td>
-          <td class="mono">${seed.toFixed(3)}</td>
-          <td>${escapeHtml(player.teamMember || player.id)}</td>
+          <td class="mono">${seed}</td>
+          <td>${escapeHtml(player.name || player.id)}</td>
           <td>${escapeHtml(player.organization || "")}</td>
           <td class="mono">${colorizeRating(before, before)}</td>
           <td class="mono">${colorizeRating(performance, performance)}</td>

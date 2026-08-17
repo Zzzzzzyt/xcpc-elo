@@ -3,9 +3,9 @@ const crypto = require("crypto");
 const {
   applyCodeforcesUpdate,
   parseContestTimestamp,
-  ratingTitle,
   DEFAULT_INITIAL_RATING,
   ELO_SCALE,
+  ELO_UPDATE_FACTOR,
 } = require("./lib/elo-core.cjs");
 const {
   assessParticipantNames,
@@ -17,13 +17,13 @@ const {
 } = require("./lib/ranklist-utils.cjs");
 const { getPinyinInitials } = require("./lib/pinyin-utils.cjs");
 
-function pairKey(organization, teamMember) {
-  return `${organization}\u0001${teamMember}`;
+function pairKey(organization, memberName) {
+  return `${organization}\u0001${memberName}`;
 }
 
-function pairHashId(organization, teamMember) {
+function pairHashId(organization, memberName) {
   const orgNorm = normalize(organization).toLowerCase();
-  const memberNorm = normalize(teamMember).toLowerCase();
+  const memberNorm = normalize(memberName).toLowerCase();
   const raw = `${orgNorm}\u0001${memberNorm}`;
   const digest = crypto.createHash("sha256").update(raw, "utf8").digest("hex");
   return `xcpc_${digest.slice(0, 16)}`;
@@ -38,17 +38,16 @@ function buildTeammateIndex(teammateMap) {
   for (const entry of entries) {
     const id = `${entry && entry.id ? entry.id : ""}`.trim();
     const organization = normalize(entry && entry.organization);
-    const teamMember = normalize(entry && entry.teamMember);
-    if (!id || !organization || !teamMember) {
+    const memberName = normalize(entry && entry.memberName);
+    if (!id || !organization || !memberName) {
       continue;
     }
 
-    const key = pairKey(organization, teamMember);
+    const key = pairKey(organization, memberName);
     byId.set(id, {
       id,
       organization,
-      teamMember,
-      appearances: entry.appearances || 0,
+      memberName,
       fromMap: true,
     });
     byPair.set(key, id);
@@ -58,9 +57,9 @@ function buildTeammateIndex(teammateMap) {
   return { byId, byPair, byPairLower };
 }
 
-function resolveTeammateId(organization, teamMember, teammateIndex) {
+function resolveTeammateId(organization, memberName, teammateIndex) {
   const org = normalize(organization);
-  const member = normalize(teamMember);
+  const member = normalize(memberName);
   if (!org || !member) {
     return null;
   }
@@ -81,8 +80,7 @@ function resolveTeammateId(organization, teamMember, teammateIndex) {
     teammateIndex.byId.set(id, {
       id,
       organization: org,
-      teamMember: member,
-      appearances: 0,
+      memberName: member,
       fromMap: false,
     });
   }
@@ -113,8 +111,8 @@ function buildContestParticipants(ranklist, contestKey, teammateIndex, unresolve
     }
 
     for (const member of teamMembers) {
-      const teamMember = normalize(resolveText(member && member.name));
-      if (!teamMember) {
+      const memberName = normalize(resolveText(member && member.name));
+      if (!memberName) {
         unresolvedEntries.push({
           contestKey,
           rank,
@@ -123,14 +121,14 @@ function buildContestParticipants(ranklist, contestKey, teammateIndex, unresolve
         continue;
       }
 
-      const id = resolveTeammateId(organization, teamMember, teammateIndex);
+      const id = resolveTeammateId(organization, memberName, teammateIndex);
       if (!id) {
         unresolvedEntries.push({
           contestKey,
           rank,
           reason: "unresolvable-member",
           organization,
-          teamMember,
+          memberName,
         });
         continue;
       }
@@ -189,12 +187,9 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
     playerStates.set(entry.id, {
       id: entry.id,
       organization: entry.organization,
-      teamMember: entry.teamMember,
-      mapAppearances: entry.appearances || 0,
+      name: entry.memberName,
       rating: initialRating,
       maxRating: initialRating,
-      minRating: initialRating,
-      contests: 0,
       history: [],
       lastDelta: 0,
     });
@@ -202,48 +197,38 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
 
   let totalRatingEvents = 0;
   for (const contest of contests) {
-    const firstTimeParticipantCount = contest.participants.reduce((count, participant) => {
-      const state = playerStates.get(participant.id);
-      return count + (state && state.contests === 0 ? 1 : 0);
-    }, 0);
-    const [updates, diagnostics] = applyCodeforcesUpdate(contest.participants, (id) => {
-      return playerStates.get(id).rating;
-    });
+    const [updates, statistics] = applyCodeforcesUpdate(contest.participants, playerStates);
 
     for (const item of updates) {
       const state = playerStates.get(item.id);
       const newRating = state.rating + item.delta;
       state.rating = newRating;
       state.maxRating = Math.max(state.maxRating, newRating);
-      state.minRating = Math.min(state.minRating, newRating);
-      state.contests += 1;
       state.lastDelta = item.delta;
-      state.history.push([contest.index, item.rank, item.delta, newRating, item.performanceRating, item.seed]);
+      state.history.push([contest.index, item.rank, item.delta, newRating, item.performanceRating, item.seed.toFixed(3)]);
       totalRatingEvents += 1;
     }
 
-    contest.diagnostics = {
-      firstTimeParticipants: firstTimeParticipantCount,
-      ...diagnostics,
-    };
+    contest.statistics = statistics;
   }
 
   const players = [...playerStates.values()]
     .map((state) => ({
       id: state.id,
       organization: state.organization,
-      teamMember: state.teamMember,
-      pinyinInitials: getPinyinInitials(state.teamMember),
-      mapAppearances: state.mapAppearances,
-      contests: state.contests,
-      rating: state.rating,
-      maxRating: state.maxRating,
-      minRating: state.minRating,
-      lastDelta: state.lastDelta,
-      title: ratingTitle(state.rating),
+      name: state.name,
+      pinyinInitials: getPinyinInitials(state.memberName),
       history: state.history,
     }))
-    .sort((a, b) => b.rating - a.rating || b.maxRating - a.maxRating || b.contests - a.contests || a.id.localeCompare(b.id));
+    .sort(
+      (a, b) =>
+        b.rating - a.rating || b.maxRating - a.maxRating || b.history.length - a.history.length || a.id.localeCompare(b.id),
+    );
+
+  for (player of players) {
+    delete player.rating;
+    delete player.maxRating;
+  }
 
   for (let index = 0; index < players.length; index += 1) {
     players[index].rank = index + 1;
@@ -272,6 +257,7 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
       rankRule: "team rank = row index in ranklist.rows (1-based)",
       initialRating,
       eloScale: ELO_SCALE,
+      eloUpdateFactor: ELO_UPDATE_FACTOR,
     },
     totals: {
       contests: contests.length,
@@ -287,7 +273,7 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
       title: contest.title,
       startAt: contest.startAt,
       participantCount: contest.participants.length,
-      diagnostics: contest.diagnostics || null,
+      statistics: contest.statistics || null,
     })),
     players,
     skippedInvalidContests,
