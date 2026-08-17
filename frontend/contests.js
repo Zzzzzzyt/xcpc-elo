@@ -124,7 +124,7 @@
           <td class="mono">${colorizeRating(before, before)}</td>
           <td class="mono">${colorizeRating(performance, performance)}</td>
           <td class="mono ${deltaClass}">${signed(delta)}</td>
-          <td class="mono">${colorizeRating(performance, newRating)}</td>
+          <td class="mono">${colorizeRating(newRating, newRating)}</td>
         </tr>`;
       })
       .join("");
