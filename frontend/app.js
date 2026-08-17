@@ -45,6 +45,7 @@
       .map((player, index) => [player.id, index + 1]),
   );
   const playerById = new Map(players.map((player) => [player.id, player]));
+  const requestedPlayerId = new URLSearchParams(window.location.search).get("player");
 
   const state = {
     query: "",
@@ -52,7 +53,7 @@
     sortBy: "current",
     lastCompetedSince: "",
     lastCompetedSinceTimestamp: null,
-    selectedId: players.length ? players[0].id : null,
+    selectedId: requestedPlayerId && playerById.has(requestedPlayerId) ? requestedPlayerId : players.length ? players[0].id : null,
   };
 
   const summaryCards = document.getElementById("summaryCards");
@@ -186,6 +187,7 @@
     for (const row of leaderboardBody.querySelectorAll("tr")) {
       row.addEventListener("click", () => {
         state.selectedId = row.getAttribute("data-player-id");
+        updateUrl("player", state.selectedId);
         renderLeaderboard();
         renderPlayerDetail();
       });
@@ -321,7 +323,7 @@
         const dateText = contest && contest.startAt ? new Date(contest.startAt).toLocaleDateString("zh-CN") : "-";
         return `
           <tr>
-            <td>${escapeHtml(contest && contest.title ? contest.title : `比赛 #${event.contestId}`)}</td>
+            <td>${contest ? `<a href="./contests.html?contest=${encodeURIComponent(contest.key)}" target="_blank" rel="noopener noreferrer">${escapeHtml(contest.title || `比赛 #${event.contestId}`)}</a>` : escapeHtml(`比赛 #${event.contestId}`)}</td>
             <td class="mono">${escapeHtml(dateText)}</td>
             <td class="mono">${event.rank}</td>
             <td class="${deltaClass} mono">${formatDelta(delta)}</td>
@@ -335,6 +337,12 @@
       history.length > visible.length
         ? `仅显示最近 ${visible.length} / ${history.length} 场比赛。`
         : `历史比赛总数：${history.length}。`;
+  }
+
+  function updateUrl(parameter, value) {
+    const url = new URL(window.location.href);
+    url.searchParams.set(parameter, value);
+    window.history.replaceState(null, "", url);
   }
 
   function computeMaxRating(player) {

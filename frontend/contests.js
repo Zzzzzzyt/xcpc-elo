@@ -22,13 +22,26 @@
     series: contestSeries(contest.sourcePath),
     year: contest.startAt ? `${new Date(contest.startAt).getFullYear()}` : "",
   }));
+  const requestedContestKey = new URLSearchParams(window.location.search).get("contest");
+  let applyRequestedContest = true;
   const series = [...new Set(filterableContests.map((item) => item.series).filter(Boolean))].sort();
   const years = [...new Set(filterableContests.map((item) => item.year).filter(Boolean))].sort((a, b) => b - a);
   series.forEach((value) => addOption(seriesSelect, value, seriesLabel(value)));
   years.forEach((value) => addOption(yearSelect, value, value));
+  const requestedContest = requestedContestKey
+    ? filterableContests.find((item) => item.contest.key === requestedContestKey)
+    : null;
+  if (requestedContest) {
+    seriesSelect.value = requestedContest.series;
+    yearSelect.value = requestedContest.year;
+  }
   seriesSelect.addEventListener("change", refreshContestOptions);
   yearSelect.addEventListener("change", refreshContestOptions);
-  select.addEventListener("change", render);
+  select.addEventListener("change", () => {
+    render();
+    const contest = data.contests[Number(select.value)];
+    if (contest && contest.key) updateUrl("contest", contest.key);
+  });
   refreshContestOptions();
 
   function refreshContestOptions() {
@@ -45,9 +58,17 @@
         `${contest.title || `比赛 #${index}`} ${contest.startAt ? `· ${new Date(contest.startAt).toLocaleDateString("zh-CN")}` : ""}`,
       ),
     );
-    if (matches.some((item) => `${item.index}` === previous)) select.value = previous;
+    const requested = applyRequestedContest && requestedContestKey
+      ? matches.find((item) => item.contest.key === requestedContestKey)
+      : null;
+    if (requested) {
+      select.value = `${requested.index}`;
+      applyRequestedContest = false;
+    } else if (matches.some((item) => `${item.index}` === previous)) select.value = previous;
     else if (matches.length) select.value = `${matches[matches.length - 1].index}`;
     select.disabled = !matches.length;
+    const selectedContest = data.contests[Number(select.value)];
+    if (selectedContest && selectedContest.key) updateUrl("contest", selectedContest.key);
     render();
   }
 
@@ -98,7 +119,7 @@
         return `<tr>
           <td class="mono">${rank}</td>
           <td class="mono">${seed}</td>
-          <td>${escapeHtml(player.name || player.id)}</td>
+          <td><a href="./index.html?player=${encodeURIComponent(player.id)}" target="_blank" rel="noopener noreferrer">${escapeHtml(player.name || player.id)}</a></td>
           <td>${escapeHtml(player.organization || "")}</td>
           <td class="mono">${colorizeRating(before, before)}</td>
           <td class="mono">${colorizeRating(performance, performance)}</td>
@@ -115,6 +136,12 @@
     option.value = value;
     option.textContent = label;
     element.appendChild(option);
+  }
+
+  function updateUrl(parameter, value) {
+    const url = new URL(window.location.href);
+    url.searchParams.set(parameter, value);
+    window.history.replaceState(null, "", url);
   }
 
   function contestSeries(sourcePath) {

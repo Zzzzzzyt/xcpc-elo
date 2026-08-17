@@ -172,10 +172,19 @@ button:hover {
   background: var(--accent-lighter);
 }
 
+a {
+  color: #2563eb;
+  text-decoration-color: rgba(37, 99, 235, 0.4);
+  text-underline-offset: 2px;
+}
+
+a:hover {
+  color: #1d4ed8;
+}
+
 .page-link {
   display: inline-block;
   margin-top: 12px;
-  color: var(--accent);
   font-weight: 600;
 }
 .contest-filters {
@@ -350,6 +359,16 @@ tbody tr.active {
       radial-gradient(circle at 16% 10%, rgba(22, 78, 82, 0.45) 0%, transparent 34%),
       radial-gradient(circle at 86% 18%, rgba(110, 72, 26, 0.35) 0%, transparent 26%),
       linear-gradient(165deg, #0c1215 0%, #111a20 46%, #0f1619 100%);
+  }
+
+  a {
+    color: #6996f7;
+    text-decoration-color: rgba(127, 164, 243, 0.4);
+    text-underline-offset: 2px;
+  }
+
+  a:hover {
+    color: #aac0fd;
   }
 }
 
