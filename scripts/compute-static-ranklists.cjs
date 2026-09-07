@@ -4,6 +4,7 @@ const {
   assessParticipantNames,
   parseCollectionConfig,
   normalizeRanklistTeamMembers,
+  normalize,
   readJson,
   resolveText,
   shouldSkipContest,
@@ -33,6 +34,54 @@ function resolveContestUserHash(ranklist) {
     hash.update(name || "");
   }
   return hash.digest("hex");
+}
+
+function removeTeamsWithoutSubmissions(staticRanklist) {
+  const rows = Array.isArray(staticRanklist && staticRanklist.rows) ? staticRanklist.rows : [];
+  const removedRows = [];
+  const keptRows = [];
+  const removedRowIndexes = new Set();
+
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+    const row = rows[rowIndex];
+    const hasSubmission = Array.isArray(row && row.statuses) && row.statuses.some((problem) => problem.result !== null);
+    if (hasSubmission) {
+      keptRows.push({ row, rowIndex });
+    } else {
+      removedRows.push({ rowIndex, rank: rowIndex + 1, row });
+      removedRowIndexes.add(rowIndex);
+    }
+  }
+
+  // An entirely empty submission set usually indicates incomplete source data;
+  // preserve the original ranklist instead of deleting every team.
+  if (!removedRows.length || !keptRows.length) {
+    return { ranklist: staticRanklist, removedRows };
+  }
+
+  const removedBeforeByRowIndex = new Map();
+  let removedBefore = 0;
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+    removedBeforeByRowIndex.set(rowIndex, removedBefore);
+    if (removedRowIndexes.has(rowIndex)) {
+      removedBefore += 1;
+    }
+  }
+
+  for (const item of keptRows) {
+    const offset = removedBeforeByRowIndex.get(item.rowIndex) || 0;
+    if (Array.isArray(item.row.rankValues)) {
+      item.row.rankValues = item.row.rankValues.map((rankValue) => {
+        if (!rankValue || !Number.isFinite(rankValue.rank)) {
+          return rankValue;
+        }
+        return { ...rankValue, rank: rankValue.rank - offset };
+      });
+    }
+  }
+
+  staticRanklist.rows = keptRows.map((item) => item.row);
+  return { ranklist: staticRanklist, removedRows };
 }
 
 async function computeAllStaticRanklists(collectionDir, outputDir) {
@@ -108,7 +157,24 @@ async function computeAllStaticRanklists(collectionDir, outputDir) {
       });
 
       const staticRanklist = convertToStaticRanklist(ranklist);
-      const invalidCheck = assessParticipantNames(staticRanklist);
+      const noSubmissionResult = removeTeamsWithoutSubmissions(staticRanklist);
+      if (noSubmissionResult.removedRows.length > 0) {
+        invalidNameItems.push({
+          uniqueKey: entry.uniqueKey,
+          file: entry.relativeFilePath,
+          reason: "no-submission",
+          detail: `removed ${noSubmissionResult.removedRows.length} team(s) without submissions`,
+          invalidRows: noSubmissionResult.removedRows.map((item) => ({
+            rowIndex: item.rowIndex,
+            rank: item.rank,
+            organization: normalize(resolveText(item.row && item.row.user && item.row.user.organization)),
+            team: normalize(resolveText(item.row && item.row.user && item.row.user.name)),
+            reason: "no-submission",
+          })),
+        });
+      }
+      const filteredRanklist = noSubmissionResult.ranklist;
+      const invalidCheck = assessParticipantNames(filteredRanklist);
       if (invalidCheck.invalidRows.length > 0) {
         invalidNameItems.push({
           uniqueKey: entry.uniqueKey,
@@ -118,7 +184,7 @@ async function computeAllStaticRanklists(collectionDir, outputDir) {
         });
       }
 
-      writeJson(outFilePath, staticRanklist);
+      writeJson(outFilePath, filteredRanklist);
       generatedSourcePaths[path.basename(outFilePath)] = entry.relativeFilePath.replace(/\\/g, "/");
       generatedCount += 1;
     } catch (error) {
