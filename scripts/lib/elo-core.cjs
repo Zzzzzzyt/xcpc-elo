@@ -6,6 +6,7 @@ const MAX_RATING_FOR_SEARCH = 6000;
 const ELO_SCALE = 400;
 const DEFAULT_INITIAL_RATING = 1400;
 const ELO_UPDATE_FACTOR = 0.5;
+const ELO_RANK_FACTOR = 0.5;
 const ELO_ADJUST_TOP_DELTA = true;
 
 /**
@@ -207,7 +208,8 @@ function applyCodeforcesUpdate(input, playerStates) {
 
   for (const row of teams) {
     row.performanceRating = seedModel.findRatingForSeed(row.rank);
-    const middleRank = Math.sqrt(row.rank * row.seed);
+    // const middleRank = Math.sqrt(row.rank * row.seed);
+    const middleRank = Math.pow(row.rank, ELO_RANK_FACTOR) * Math.pow(row.seed, 1 - ELO_RANK_FACTOR);
     row.neededRating = seedModel.findRatingForSeed(middleRank);
   }
 
