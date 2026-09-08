@@ -1,3 +1,6 @@
+/**
+ * Initializes the player leaderboard and player detail dashboard.
+ */
 (function bootstrap() {
   const data = window.__ELO_DATA__;
   if (!data || !Array.isArray(data.players) || !Array.isArray(data.contests)) {
@@ -6,6 +9,7 @@
     return;
   }
 
+  const { colorizeRating, escapeHtml, formatDelta, updateUrl } = window.xcpcFrontendUtils;
   const contests = data.contests;
   const contestTimestampByIndex = contests.map((contest) => parseContestStartTimestamp(contest && contest.startAt));
   const initialRating = data.config.initialRating;
@@ -56,7 +60,6 @@
     selectedId: requestedPlayerId && playerById.has(requestedPlayerId) ? requestedPlayerId : players.length ? players[0].id : null,
   };
 
-  const summaryCards = document.getElementById("summaryCards");
   const subtitle = document.getElementById("subtitle");
   const searchInput = document.getElementById("searchInput");
   const sortSelect = document.getElementById("sortSelect");
@@ -107,14 +110,18 @@
     });
   }
 
+  /**
+   * Updates the global subtitle with dataset statistics.
+   */
   function renderSummary() {
     subtitle.textContent = `共 ${data.totals.players.toLocaleString()} 名选手，${data.totals.contests.toLocaleString()} 场比赛，生成时间: ${new Date(data.generatedAt).toLocaleString("zh-CN")}，ELO 初始分: ${initialRating}，ELO 缩放系数: ${eloScale}，ELO 更新系数: ${eloUpdateFactor}`;
-    const topHistorical = players.reduce(
-      (best, player) => (topScore(player) > best ? topScore(player) : best),
-      Number.NEGATIVE_INFINITY,
-    );
   }
 
+  /**
+   * Applies search and date filters, then returns players in the selected order.
+   *
+   * @returns {object[]} Filtered and sorted player list.
+   */
   function getFilteredPlayers() {
     let filtered = players;
     if (state.queryTerms.length) {
@@ -145,6 +152,9 @@
     return cloned;
   }
 
+  /**
+   * Renders the leaderboard and keeps the selected player within the filtered set.
+   */
   function renderLeaderboard() {
     const filtered = getFilteredPlayers();
     if (!filtered.length) {
@@ -196,6 +206,9 @@
     renderPlayerDetail();
   }
 
+  /**
+   * Renders metadata, rating chart, and history for the selected player.
+   */
   function renderPlayerDetail() {
     const player = playerById.get(state.selectedId);
     if (!player) {
@@ -218,6 +231,11 @@
     renderHistory(player);
   }
 
+  /**
+   * Draws the selected player's rating chart when enough history exists.
+   *
+   * @param {object} player Player data.
+   */
   function drawChart(player) {
     const sequence = buildRatingSequence(player);
     if (sequence.length <= 1) {
@@ -233,6 +251,12 @@
     ratingChart.innerHTML = "<p style='padding:12px;font-size:13px;color:#5f6b71'>图表组件未加载，无法显示评分曲线。</p>";
   }
 
+  /**
+   * Builds chart points from a player's rating history.
+   *
+   * @param {object} player Player data.
+   * @returns {object[]} Chart points.
+   */
   function buildRatingSequence(player) {
     const sequence = [{ label: "初始分", rating: initialRating, date: null }];
     for (const event of player.history) {
@@ -247,6 +271,11 @@
     return sequence;
   }
 
+  /**
+   * Renders the rating sequence using Plotly.
+   *
+   * @param {object[]} sequence Rating chart points.
+   */
   function drawPlotlyChart(sequence) {
     const chartTheme = getChartTheme();
     const firstDatedPoint = sequence.find((point) => point.date);
@@ -304,6 +333,9 @@
     );
   }
 
+  /**
+   * Clears Plotly and any remaining chart markup.
+   */
   function clearChart() {
     if (window.Plotly && typeof window.Plotly.purge === "function") {
       window.Plotly.purge(ratingChart);
@@ -311,6 +343,11 @@
     ratingChart.innerHTML = "";
   }
 
+  /**
+   * Renders recent contest history for a player.
+   *
+   * @param {object} player Player data.
+   */
   function renderHistory(player) {
     const history = [...player.history].reverse();
     const visible = history.slice(0, 240);
@@ -339,12 +376,12 @@
         : `历史比赛总数：${history.length}。`;
   }
 
-  function updateUrl(parameter, value) {
-    const url = new URL(window.location.href);
-    url.searchParams.set(parameter, value);
-    window.history.replaceState(null, "", url);
-  }
-
+  /**
+   * Finds the highest rating reached in a player's history.
+   *
+   * @param {object} player Player data.
+   * @returns {number} Maximum rating.
+   */
   function computeMaxRating(player) {
     const history = player.history;
     if (!history || !history.length) {
@@ -359,6 +396,12 @@
     return best;
   }
 
+  /**
+   * Finds the latest contest timestamp a player competed in.
+   *
+   * @param {object} player Player data.
+   * @returns {number|null} Latest timestamp, or null without history.
+   */
   function computeLastCompetedTimestamp(player) {
     const history = Array.isArray(player && player.history) ? player.history : [];
     let latest = null;
@@ -374,6 +417,12 @@
     return latest;
   }
 
+  /**
+   * Parses an optional contest start timestamp.
+   *
+   * @param {string} startAt ISO date string.
+   * @returns {number|null} Millisecond timestamp, or null.
+   */
   function parseContestStartTimestamp(startAt) {
     if (!startAt) {
       return null;
@@ -382,6 +431,12 @@
     return Number.isFinite(timestamp) ? timestamp : null;
   }
 
+  /**
+   * Parses a date input value as a local midnight timestamp.
+   *
+   * @param {string} value Date input value.
+   * @returns {number|null} Millisecond timestamp, or null.
+   */
   function parseDateInputToTimestamp(value) {
     if (!value) {
       return null;
@@ -390,12 +445,22 @@
     return Number.isFinite(timestamp) ? timestamp : null;
   }
 
+  /**
+   * Updates the last-competition filter and rerenders the leaderboard.
+   *
+   * @param {string} value Date input value.
+   */
   function updateLastCompetedFilter(value) {
     state.lastCompetedSince = `${value || ""}`.trim();
     state.lastCompetedSinceTimestamp = parseDateInputToTimestamp(state.lastCompetedSince);
     renderLeaderboard();
   }
 
+  /**
+   * Formats active last-competition filter text.
+   *
+   * @returns {string} Hint suffix, or an empty string when inactive.
+   */
   function formatLastCompetedFilterHint() {
     if (!state.lastCompetedSince) {
       return "";
@@ -403,10 +468,21 @@
     return ` 最后参赛不早于 ${state.lastCompetedSince}。`;
   }
 
+  /**
+   * Returns a comparable top score for sorting.
+   *
+   * @param {object} player Player data.
+   * @returns {number} Maximum rating or negative infinity.
+   */
   function topScore(player) {
     return typeof player.maxRating === "number" ? player.maxRating : Number.NEGATIVE_INFINITY;
   }
 
+  /**
+   * Reads chart colors from the active CSS theme.
+   *
+   * @returns {object} Plotly color theme values.
+   */
   function getChartTheme() {
     const styles = getComputedStyle(document.documentElement);
     return {
@@ -417,10 +493,22 @@
     };
   }
 
+  /**
+   * Normalizes a value for case-insensitive search.
+   *
+   * @param {*} value Value to normalize.
+   * @returns {string} Trimmed lowercased text.
+   */
   function normalizeSearchToken(value) {
     return `${value || ""}`.trim().toLowerCase();
   }
 
+  /**
+   * Splits a normalized query into whitespace-separated terms.
+   *
+   * @param {string} value Search query.
+   * @returns {string[]} Non-empty search terms.
+   */
   function splitSearchTerms(value) {
     if (!value) {
       return [];
@@ -428,14 +516,23 @@
     return value.split(/\s+/).filter(Boolean);
   }
 
-  function formatDelta(delta) {
-    return delta > 0 ? `+${delta}` : `${delta}`;
-  }
-
+  /**
+   * Formats a top rating for display.
+   *
+   * @param {number} value Rating value.
+   * @returns {string} Rating text or a dash.
+   */
   function formatTopRating(value) {
     return typeof value === "number" ? `${value}` : "-";
   }
 
+  /**
+   * Formats rating text with the appropriate rating color.
+   *
+   * @param {number} rating Numeric rating tier.
+   * @param {*} text Display value.
+   * @returns {string} Escaped colored rating markup.
+   */
   function formatRatingColored(rating, text) {
     if (typeof rating === "number") {
       return colorizeRating(rating, escapeHtml(`${text}`));
@@ -443,6 +540,12 @@
     return escapeHtml(`${text}`);
   }
 
+  /**
+   * Formats a timestamp as a localized date.
+   *
+   * @param {number} value Millisecond timestamp.
+   * @returns {string} Localized date or unknown text.
+   */
   function formatDateOnly(value) {
     if (typeof value !== "number") {
       return "未知";
@@ -450,53 +553,4 @@
     return new Date(value).toLocaleDateString("zh-CN");
   }
 
-  function formatContestStatistics(statistics) {
-    if (!statistics || typeof statistics !== "object") {
-      return "-";
-    }
-
-    const firstTimeParticipants = Number.isFinite(statistics.firstTimeParticipants)
-      ? statistics.firstTimeParticipants.toLocaleString()
-      : "-";
-    const deltaSum = Number.isFinite(statistics.deltaSum) ? formatDelta(statistics.deltaSum) : "-";
-    const topCount = Number.isFinite(statistics.topCount) ? statistics.topCount.toLocaleString() : "-";
-    const topDeltaSum = Number.isFinite(statistics.topDeltaSum) ? formatDelta(statistics.topDeltaSum) : "-";
-    return `首参 ${firstTimeParticipants} | Δ和 ${deltaSum} | Top ${topCount} / ${topDeltaSum}`;
-  }
-
-  function escapeHtml(value) {
-    return `${value || ""}`
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;");
-  }
-
-  function ratingTitle(rating) {
-    if (rating < 1200) return "newbie";
-    if (rating < 1400) return "pupil";
-    if (rating < 1600) return "specialist";
-    if (rating < 1900) return "expert";
-    if (rating < 2100) return "candidate master";
-    if (rating < 2300) return "master";
-    if (rating < 2400) return "international master";
-    if (rating < 2600) return "grandmaster";
-    if (rating < 3000) return "international grandmaster";
-    return "legendary grandmaster";
-  }
-
-  function colorizeRating(rating, value) {
-    value = `${value}`;
-    if (rating < 1200) return `<span style="color: var(--rating-color-0)">${value}</span>`;
-    if (rating < 1400) return `<span style="color: var(--rating-color-1)">${value}</span>`;
-    if (rating < 1600) return `<span style="color: var(--rating-color-2)">${value}</span>`;
-    if (rating < 1900) return `<span style="color: var(--rating-color-3)">${value}</span>`;
-    if (rating < 2100) return `<span style="color: var(--rating-color-4)">${value}</span>`;
-    if (rating < 2300) return `<span style="color: var(--rating-color-5)">${value}</span>`;
-    if (rating < 2400) return `<span style="color: var(--rating-color-6)">${value}</span>`;
-    if (rating < 2600) return `<span style="color: var(--rating-color-7)">${value}</span>`;
-    if (rating < 3000) return `<span style="color: var(--rating-color-8)">${value}</span>`;
-    return `<span style="color:var(--rating-color-9a)">${value[0]}</span><span style="color: var(--rating-color-9b)">${value.slice(1)}</span>`;
-  }
 })();

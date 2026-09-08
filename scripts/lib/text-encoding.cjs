@@ -1,3 +1,6 @@
+/**
+ * CSV text encoding detection and conversion helpers.
+ */
 const fs = require("fs");
 const path = require("path");
 const iconv = require("iconv-lite");
@@ -32,6 +35,12 @@ const BOM_SIGNATURES = [
 	},
 ];
 
+/**
+ * Matches a byte prefix against known BOM signatures.
+ *
+ * @param {Buffer} buffer Input buffer.
+ * @returns {object|null} Matching signature object, or null.
+ */
 function detectBom(buffer) {
 	for (const signature of BOM_SIGNATURES) {
 		if (buffer.length >= signature.bytes.length && buffer.subarray(0, signature.bytes.length).equals(signature.bytes)) {
@@ -41,6 +50,12 @@ function detectBom(buffer) {
 	return null;
 }
 
+/**
+ * Returns the first encoding supported by iconv-lite.
+ *
+ * @param {string[]} candidates Encoding candidates.
+ * @returns {string|null} Supported encoding name, or null.
+ */
 function resolveSupportedEncoding(candidates) {
 	for (const candidate of candidates) {
 		if (!candidate) {
@@ -53,6 +68,12 @@ function resolveSupportedEncoding(candidates) {
 	return null;
 }
 
+/**
+ * Detects CSV encoding from BOM signatures or chardet analysis.
+ *
+ * @param {Buffer} buffer Input buffer.
+ * @returns {object} Encoding description used for decode and encode operations.
+ */
 function detectEncodingFromBuffer(buffer) {
 	const bom = detectBom(buffer);
 	if (bom) {
@@ -94,11 +115,25 @@ function detectEncodingFromBuffer(buffer) {
 	throw new Error("Unable to detect a supported CSV encoding.");
 }
 
+/**
+ * Decodes a buffer after stripping its BOM when present.
+ *
+ * @param {Buffer} buffer Input buffer.
+ * @param {object} encodingInfo Encoding metadata from detection.
+ * @returns {string} Decoded text.
+ */
 function decodeBufferWithEncoding(buffer, encodingInfo) {
 	const payload = encodingInfo.hadBom ? buffer.subarray(encodingInfo.bomBytes.length) : buffer;
 	return iconv.decode(payload, encodingInfo.encoding);
 }
 
+/**
+ * Encodes text and prepends the original BOM when present.
+ *
+ * @param {string} text Text to encode.
+ * @param {object} encodingInfo Encoding metadata from detection.
+ * @returns {Buffer} Encoded output.
+ */
 function encodeTextWithEncoding(text, encodingInfo) {
 	const body = iconv.encode(text, encodingInfo.encoding);
 	if (encodingInfo.hadBom && encodingInfo.bomBytes.length) {
@@ -107,6 +142,13 @@ function encodeTextWithEncoding(text, encodingInfo) {
 	return body;
 }
 
+/**
+ * Reads a text file and returns its detected encoding metadata.
+ *
+ * @param {string} filePath Path to the file.
+ * @returns {{buffer: Buffer, encodingInfo: object, text: string}} Raw buffer,
+ *   encoding metadata, and decoded text.
+ */
 function readTextFileWithDetectedEncoding(filePath) {
 	const buffer = fs.readFileSync(filePath);
 	const encodingInfo = detectEncodingFromBuffer(buffer);
@@ -117,6 +159,13 @@ function readTextFileWithDetectedEncoding(filePath) {
 	};
 }
 
+/**
+ * Writes text using the provided encoding and BOM behavior.
+ *
+ * @param {string} filePath Output path.
+ * @param {string} text Text to write.
+ * @param {object} [encodingInfo] Encoding metadata; UTF-8 without BOM when omitted.
+ */
 function writeTextFileWithEncoding(filePath, text, encodingInfo) {
 	const resolvedEncodingInfo = encodingInfo || {
 		encoding: "utf8",
@@ -129,6 +178,12 @@ function writeTextFileWithEncoding(filePath, text, encodingInfo) {
 	fs.writeFileSync(filePath, encodeTextWithEncoding(text, resolvedEncodingInfo));
 }
 
+/**
+ * Formats encoding metadata for user-facing logging.
+ *
+ * @param {object} encodingInfo Encoding metadata.
+ * @returns {string} Human-readable encoding summary.
+ */
 function describeEncoding(encodingInfo) {
 	const parts = [encodingInfo.encoding];
 	if (encodingInfo.hadBom) {

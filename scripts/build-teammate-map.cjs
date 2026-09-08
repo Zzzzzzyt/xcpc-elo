@@ -1,15 +1,24 @@
+/**
+ * Builds the teammate-organization map used as Elo identity input.
+ */
 const path = require("path");
-const crypto = require("crypto");
-const { collectStaticRanklistFiles, normalize, readJson, resolveText, writeJson } = require("./lib/ranklist-utils.cjs");
+const {
+  collectStaticRanklistFiles,
+  normalize,
+  readJson,
+  resolveText,
+  teammateHashId,
+  teammatePairKey,
+  writeJson,
+} = require("./lib/ranklist-utils.cjs");
 
-function pairHashId(organization, name) {
-  const orgNorm = normalize(organization).toLowerCase();
-  const memberNorm = normalize(name).toLowerCase();
-  const raw = `${orgNorm}\u0001${memberNorm}`;
-  const digest = crypto.createHash("sha256").update(raw, "utf8").digest("hex");
-  return `xcpc_${digest.slice(0, 16)}`;
-}
-
+/**
+ * Scans static ranklists and aggregates teammate-organization pairs.
+ *
+ * @param {string} staticRootDir Directory containing static ranklists.
+ * @param {string} outputFile Output JSON path.
+ * @returns {object} Built teammate map data.
+ */
 function buildTeammateOrganizationMap(staticRootDir, outputFile) {
   const ranklistFiles = collectStaticRanklistFiles(staticRootDir);
   const pairMap = new Map();
@@ -33,10 +42,10 @@ function buildTeammateOrganizationMap(staticRootDir, outputFile) {
           continue;
         }
 
-        const key = `${organization}\u0001${name}`;
+        const key = teammatePairKey(organization, name);
         if (!pairMap.has(key)) {
           pairMap.set(key, {
-            id: pairHashId(organization, name),
+            id: teammateHashId(organization, name),
             organization,
             name,
             contests: new Set(),
@@ -84,6 +93,9 @@ function buildTeammateOrganizationMap(staticRootDir, outputFile) {
   return output;
 }
 
+/**
+ * CLI entry point for teammate map generation.
+ */
 function main() {
   const staticRootDir = path.resolve(process.argv[2] || path.join("out", "static-ranklists"));
   const outputFile = path.resolve(process.argv[3] || path.join("out", "teammate-map.json"));

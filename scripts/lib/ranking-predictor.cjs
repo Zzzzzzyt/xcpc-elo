@@ -1,3 +1,6 @@
+/**
+ * CSV parsing and teammate-rating prediction helpers.
+ */
 const { parse: parseCsvSync } = require("csv-parse/sync");
 const { stringify: stringifyCsvSync } = require("csv-stringify/sync");
 const { normalize, resolveText } = require("./ranklist-utils.cjs");
@@ -21,6 +24,12 @@ const AGGREGATION_MODE_ALIASES = new Map([
 	["gmean", "geometric-mean"],
 ]);
 
+/**
+ * Parses CSV text into normalized headers and padded rows.
+ *
+ * @param {string} text CSV source text.
+ * @returns {{headers: string[], rows: string[][]}} Parsed CSV data.
+ */
 function parseCsv(text) {
 	const rows = parseCsvSync(text, {
 		relax_column_count: true,
@@ -46,10 +55,23 @@ function parseCsv(text) {
 	return { headers, rows: dataRows };
 }
 
+/**
+ * Serializes headers and data rows to CSV text.
+ *
+ * @param {string[]} headers Output headers.
+ * @param {Array<Array<string|number>>} rows Output rows.
+ * @returns {string} CSV text.
+ */
 function stringifyCsv(headers, rows) {
 	return stringifyCsvSync([headers, ...rows]);
 }
 
+/**
+ * Splits one CSV cell into distinct teammate names.
+ *
+ * @param {string} rawText Teammate cell text.
+ * @returns {string[]} Normalized, non-empty teammate names.
+ */
 function splitTeammates(rawText) {
 	const text = normalize(rawText);
 	if (!text) {
@@ -62,10 +84,24 @@ function splitTeammates(rawText) {
 		.filter(Boolean);
 }
 
+/**
+ * Builds the normalized lookup key for an organization/teammate pair.
+ *
+ * @param {string} organization Organization name.
+ * @param {string} teammate Teammate name.
+ * @returns {string} Lowercased pair lookup key.
+ */
 function buildLookupKey(organization, teammate) {
 	return `${normalize(organization).toLowerCase()}\u0001${normalize(teammate).toLowerCase()}`;
 }
 
+/**
+ * Builds an order-independent stable key for a team.
+ *
+ * @param {string} organization Organization name.
+ * @param {string[]} teammateNames Teammate names.
+ * @returns {string} Stable team key.
+ */
 function buildStableTeamKey(organization, teammateNames) {
 	const normalizedNames = teammateNames
 		.map((name) => normalize(name).toLowerCase())
@@ -74,6 +110,14 @@ function buildStableTeamKey(organization, teammateNames) {
 	return `${normalize(organization).toLowerCase()}\u0001${normalizedNames.join("\u0001")}`;
 }
 
+/**
+ * Creates a rating lookup backed by an explicit pair map.
+ *
+ * @param {object} config Rating index options.
+ * @param {number} config.initialRating Rating returned for unknown teammates.
+ * @param {Map<string, number>} config.ratingsByPair Known pair ratings.
+ * @returns {object} Rating lookup helpers.
+ */
 function createRatingIndex({ initialRating, ratingsByPair }) {
 	const resolvedInitialRating = Number.isFinite(initialRating) ? initialRating : DEFAULT_INITIAL_RATING;
 	const normalizedRatings = ratingsByPair instanceof Map ? ratingsByPair : new Map();
@@ -91,6 +135,12 @@ function createRatingIndex({ initialRating, ratingsByPair }) {
 	};
 }
 
+/**
+ * Builds a rating lookup from generated teammate Elo JSON.
+ *
+ * @param {object} eloData Teammate Elo output data.
+ * @returns {object} Rating lookup helpers.
+ */
 function buildRatingIndex(eloData) {
 	const configuredInitialRating = Number.isFinite(eloData && eloData.config && eloData.config.initialRating)
 		? eloData.config.initialRating
@@ -111,6 +161,12 @@ function buildRatingIndex(eloData) {
 	return createRatingIndex({ initialRating: configuredInitialRating, ratingsByPair });
 }
 
+/**
+ * Locates teammate and organization columns by header patterns.
+ *
+ * @param {string[]} headers Normalized CSV headers.
+ * @returns {{teammateIndexes: number[], organizationIndex: number}} Detected columns.
+ */
 function detectColumnIndexes(headers) {
 	const teammateIndexes = [];
 	let organizationIndex = -1;
@@ -128,6 +184,12 @@ function detectColumnIndexes(headers) {
 	return { teammateIndexes, organizationIndex };
 }
 
+/**
+ * Normalizes an aggregation mode argument.
+ *
+ * @param {string} modeArg User-supplied mode.
+ * @returns {string} Canonical aggregation mode.
+ */
 function parseAggregationMode(modeArg) {
 	const normalizedMode = normalize(modeArg || "sum")
 		.toLowerCase()
@@ -140,6 +202,13 @@ function parseAggregationMode(modeArg) {
 	throw new Error(`Invalid mode: ${modeArg}. Use ${AGGREGATION_MODES.join(", ")}.`);
 }
 
+/**
+ * Aggregates teammate ratings using one supported mode.
+ *
+ * @param {number[]} ratingValues Teammate ratings.
+ * @param {string} aggregationMode Canonical mode.
+ * @returns {number} Aggregate score.
+ */
 function aggregateRatings(ratingValues, aggregationMode) {
 	const mode = parseAggregationMode(aggregationMode);
 	if (!ratingValues.length) {
@@ -165,6 +234,14 @@ function aggregateRatings(ratingValues, aggregationMode) {
 	return Math.exp(logSum / ratingValues.length);
 }
 
+/**
+ * Converts CSV rows into predict-ready team entries.
+ *
+ * @param {{headers: string[], rows: string[][]}} parsedCsv Parsed CSV.
+ * @param {number[]} teammateIndexes Indexes of teammate columns.
+ * @param {number} organizationIndex Index of organization column.
+ * @returns {object[]} Team entries with original row data.
+ */
 function buildTeamEntriesFromCsv(parsedCsv, teammateIndexes, organizationIndex) {
 	return parsedCsv.rows.map((row, rowIndex) => {
 		const organization = organizationIndex >= 0 ? normalize(row[organizationIndex]) : "";
@@ -182,6 +259,12 @@ function buildTeamEntriesFromCsv(parsedCsv, teammateIndexes, organizationIndex) 
 	});
 }
 
+/**
+ * Converts static ranklist rows into predict-ready team entries.
+ *
+ * @param {object} ranklist Static ranklist data.
+ * @returns {object[]} Team entries with actual ranks.
+ */
 function buildTeamEntriesFromRanklist(ranklist) {
 	const rows = Array.isArray(ranklist && ranklist.rows) ? ranklist.rows : [];
 	const entries = [];
@@ -212,6 +295,16 @@ function buildTeamEntriesFromRanklist(ranklist) {
 	return entries;
 }
 
+/**
+ * Scores, sorts, and assigns predicted ranks to team entries.
+ *
+ * @param {object[]} teamEntries Team entries.
+ * @param {object} ratingIndex Rating lookup helpers.
+ * @param {string} aggregationMode Canonical aggregation mode.
+ * @param {object} [options] Prediction options.
+ * @param {string} [options.tieBreak] Sort tie-break policy.
+ * @returns {object[]} Sorted entries with `predictedRank`.
+ */
 function predictEntries(teamEntries, ratingIndex, aggregationMode, options = {}) {
 	const mode = parseAggregationMode(aggregationMode);
 	const tieBreak = options.tieBreak === "source-order" ? "source-order" : "team-key";
@@ -265,6 +358,12 @@ function predictEntries(teamEntries, ratingIndex, aggregationMode, options = {})
 	return predicted;
 }
 
+/**
+ * Returns the output score header for an aggregation mode.
+ *
+ * @param {string} modeArg User-supplied mode.
+ * @returns {string} CSV score column name.
+ */
 function scoreHeaderForMode(modeArg) {
 	const mode = parseAggregationMode(modeArg);
 	if (mode === "sum") return "predicted_elo_sum";

@@ -1,3 +1,6 @@
+/**
+ * Initializes the contest detail and participant browser.
+ */
 (function bootstrapContests() {
   const data = window.__ELO_DATA__;
   if (!data || !Array.isArray(data.players) || !Array.isArray(data.contests)) {
@@ -6,6 +9,7 @@
     return;
   }
 
+  const { colorizeRating, escapeHtml, formatDelta, updateUrl } = window.xcpcFrontendUtils;
   const select = document.getElementById("contestSelect");
   const seriesSelect = document.getElementById("seriesSelect");
   const yearSelect = document.getElementById("yearSelect");
@@ -45,6 +49,9 @@
   });
   refreshContestOptions();
 
+  /**
+   * Rebuilds contest choices based on series/year filters.
+   */
   function refreshContestOptions() {
     const previous = select.value;
     const matches = filterableContests.filter(
@@ -72,6 +79,9 @@
     render();
   }
 
+  /**
+   * Renders the selected contest, statistics, histogram, and participants.
+   */
   function render() {
     if (!select.value) {
       title.textContent = "没有符合筛选条件的比赛";
@@ -105,9 +115,9 @@
     drawPredictionHistogram(d.predictionRankDifferences);
     statistics.innerHTML = [
       ["首次参赛", d.firstTimeParticipantCount],
-      ["Delta 合计", signed(d.sumDeltaFinal)],
+      ["Delta 合计", formatDelta(d.sumDeltaFinal)],
       ["Delta 调整", d.adjustment1],
-      ["Top 调整", Number.isFinite(d.topCount) ? `${d.topCount}（${signed(d.adjustment2)}）` : "-"],
+      ["Top 调整", Number.isFinite(d.topCount) ? `${d.topCount}（${formatDelta(d.adjustment2)}）` : "-"],
       ["预测队伍数", d.predictionTeamCount],
       ["预测相关系数", d.predictionSpearman.toFixed(4)],
     ]
@@ -117,7 +127,7 @@
       )
       .join("");
     body.innerHTML = participants
-      .map(({ player, rank, delta, newRating, performance, neededRating, seed }) => {
+      .map(({ player, rank, delta, newRating, performance, seed }) => {
         const before = Number.isFinite(newRating) && Number.isFinite(delta) ? newRating - delta : null;
         const deltaClass = delta > 0 ? "delta-positive" : delta < 0 ? "delta-negative" : "delta-neutral";
         return `<tr>
@@ -127,7 +137,7 @@
           <td>${escapeHtml(player.organization || "")}</td>
           <td class="mono">${colorizeRating(before, before)}</td>
           <td class="mono">${colorizeRating(performance, performance)}</td>
-          <td class="mono ${deltaClass}">${signed(delta)}</td>
+          <td class="mono ${deltaClass}">${formatDelta(delta)}</td>
           <td class="mono">${colorizeRating(newRating, newRating)}</td>
         </tr>`;
       })
@@ -135,6 +145,11 @@
     hint.textContent = participants.length ? `按比赛名次排序，共 ${participants.length} 名选手。` : "暂无参赛记录。";
   }
 
+  /**
+   * Draws a histogram of predicted-versus-actual rank differences.
+   *
+   * @param {number[]} values Rank difference values.
+   */
   function drawPredictionHistogram(values) {
     const differences = Array.isArray(values) ? values.filter((value) => Number.isFinite(value)) : [];
     if (!differences.length) {
@@ -180,6 +195,9 @@
     );
   }
 
+  /**
+   * Clears Plotly and shows the empty histogram placeholder.
+   */
   function clearPredictionHistogram() {
     if (window.Plotly && typeof window.Plotly.purge === "function") {
       window.Plotly.purge(predictionHistogram);
@@ -187,6 +205,13 @@
     predictionHistogram.innerHTML = "<p class='hint' style='padding:12px'>暂无可用的赛前排名预测数据。</p>";
   }
 
+  /**
+   * Adds one select option.
+   *
+   * @param {HTMLSelectElement} element Target select element.
+   * @param {string} value Option value.
+   * @param {string} label Display label.
+   */
   function addOption(element, value, label) {
     const option = document.createElement("option");
     option.value = value;
@@ -194,19 +219,25 @@
     element.appendChild(option);
   }
 
-  function updateUrl(parameter, value) {
-    const url = new URL(window.location.href);
-    url.searchParams.set(parameter, value);
-    window.history.replaceState(null, "", url);
-  }
-
+  /**
+   * Derives the contest series from its source collection path.
+   *
+   * @param {string} sourcePath Source ranklist path.
+   * @returns {string} Series key, or an empty string.
+   */
   function contestSeries(sourcePath) {
-    const parts = `${sourcePath || ""}`.replace(/\\/g, "/").split("/").filter(Boolean);
+    const parts = `${sourcePath || ""}`.split("/").filter(Boolean);
     if (parts[0] === "icpc" || parts[0] === "ccpc") return parts[0];
     if (parts[0] === "provincial" && parts[1]) return `provincial-${parts[1]}`;
     return "";
   }
 
+  /**
+   * Converts a series key into a user-facing Chinese label.
+   *
+   * @param {string} value Series key.
+   * @returns {string} Series display label.
+   */
   function seriesLabel(value) {
     if (value === "icpc") return "ICPC";
     if (value === "ccpc") return "CCPC";
@@ -241,28 +272,4 @@
     return `${provinceNames[provinceId] || provinceId.toUpperCase()}`;
   }
 
-  function signed(value) {
-    return Number.isFinite(value) ? (value > 0 ? `+${value}` : `${value}`) : `${value}`;
-  }
-  function colorizeRating(rating, value) {
-    value = `${value}`;
-    if (rating < 1200) return `<span style="color: var(--rating-color-0)">${value}</span>`;
-    if (rating < 1400) return `<span style="color: var(--rating-color-1)">${value}</span>`;
-    if (rating < 1600) return `<span style="color: var(--rating-color-2)">${value}</span>`;
-    if (rating < 1900) return `<span style="color: var(--rating-color-3)">${value}</span>`;
-    if (rating < 2100) return `<span style="color: var(--rating-color-4)">${value}</span>`;
-    if (rating < 2300) return `<span style="color: var(--rating-color-5)">${value}</span>`;
-    if (rating < 2400) return `<span style="color: var(--rating-color-6)">${value}</span>`;
-    if (rating < 2600) return `<span style="color: var(--rating-color-7)">${value}</span>`;
-    if (rating < 3000) return `<span style="color: var(--rating-color-8)">${value}</span>`;
-    return `<span style="color:var(--rating-color-9a)">${value[0]}</span><span style="color: var(--rating-color-9b)">${value.slice(1)}</span>`;
-  }
-  function escapeHtml(value) {
-    return `${value || ""}`
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;");
-  }
 })();

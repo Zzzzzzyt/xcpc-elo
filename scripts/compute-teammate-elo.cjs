@@ -1,5 +1,8 @@
+/**
+ * Computes teammate Elo histories from static ranklists.
+ */
+const fs = require("fs");
 const path = require("path");
-const crypto = require("crypto");
 const {
   applyCodeforcesUpdate,
   parseContestTimestamp,
@@ -8,27 +11,22 @@ const {
   ELO_UPDATE_FACTOR,
 } = require("./lib/elo-core.cjs");
 const {
-  assessParticipantNames,
   collectStaticRanklistFiles,
   normalize,
   readJson,
   resolveText,
+  teammateHashId,
+  teammatePairKey,
   writeJson,
 } = require("./lib/ranklist-utils.cjs");
 const { getPinyinInitials } = require("./lib/pinyin-utils.cjs");
 
-function pairKey(organization, name) {
-  return `${organization}\u0001${name}`;
-}
-
-function pairHashId(organization, name) {
-  const orgNorm = normalize(organization).toLowerCase();
-  const memberNorm = normalize(name).toLowerCase();
-  const raw = `${orgNorm}\u0001${memberNorm}`;
-  const digest = crypto.createHash("sha256").update(raw, "utf8").digest("hex");
-  return `xcpc_${digest.slice(0, 16)}`;
-}
-
+/**
+ * Indexes teammate map entries by stable ID and organization/name pair.
+ *
+ * @param {object} teammateMap Generated teammate map data.
+ * @returns {object} Maps used for teammate identity resolution.
+ */
 function buildTeammateIndex(teammateMap) {
   const entries = Array.isArray(teammateMap && teammateMap.entries) ? teammateMap.entries : [];
   const byId = new Map();
@@ -43,11 +41,11 @@ function buildTeammateIndex(teammateMap) {
       continue;
     }
 
-    const key = pairKey(organization, name);
+    const key = teammatePairKey(organization, name);
     byId.set(id, {
       id,
       organization,
-      name: name,
+      name,
       fromMap: true,
     });
     byPair.set(key, id);
@@ -57,6 +55,14 @@ function buildTeammateIndex(teammateMap) {
   return { byId, byPair, byPairLower };
 }
 
+/**
+ * Resolves or registers a teammate ID for an organization/name pair.
+ *
+ * @param {string} organization Organization name.
+ * @param {string} name Teammate name.
+ * @param {object} teammateIndex Index maps built from the teammate map.
+ * @returns {string|null} Resolved teammate ID, or null for empty input.
+ */
 function resolveTeammateId(organization, name, teammateIndex) {
   const org = normalize(organization);
   const member = normalize(name);
@@ -64,7 +70,7 @@ function resolveTeammateId(organization, name, teammateIndex) {
     return null;
   }
 
-  const key = pairKey(org, member);
+  const key = teammatePairKey(org, member);
   const exact = teammateIndex.byPair.get(key);
   if (exact) {
     return exact;
@@ -75,7 +81,7 @@ function resolveTeammateId(organization, name, teammateIndex) {
     return lower;
   }
 
-  const id = pairHashId(org, member);
+  const id = teammateHashId(org, member);
   if (!teammateIndex.byId.has(id)) {
     teammateIndex.byId.set(id, {
       id,
@@ -89,9 +95,17 @@ function resolveTeammateId(organization, name, teammateIndex) {
   return id;
 }
 
+/**
+ * Converts one ranklist into contest participants with resolved teammate IDs.
+ *
+ * @param {object} ranklist Static ranklist data.
+ * @param {string} contestKey Contest key used in unresolved diagnostics.
+ * @param {object} teammateIndex Index maps for teammate identity resolution.
+ * @param {object[]} unresolvedEntries Collector for rows that could not be used.
+ * @returns {object[]} Contest participant rows.
+ */
 function buildContestParticipants(ranklist, contestKey, teammateIndex, unresolvedEntries) {
   const rows = Array.isArray(ranklist && ranklist.rows) ? ranklist.rows : [];
-  const rankById = new Map();
   const output = [];
 
   for (let index = 0; index < rows.length; index += 1) {
@@ -140,12 +154,21 @@ function buildContestParticipants(ranklist, contestKey, teammateIndex, unresolve
   return output;
 }
 
+/**
+ * Builds the full teammate Elo output JSON.
+ *
+ * @param {string} staticRootDir Static ranklist directory.
+ * @param {string} teammateMapFile Teammate map JSON path.
+ * @param {string} outputFile Output Elo JSON path.
+ * @param {number} initialRating Starting rating.
+ * @returns {object} Generated Elo dataset.
+ */
 function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRating) {
   const teammateMap = readJson(teammateMapFile);
   const teammateIndex = buildTeammateIndex(teammateMap);
   const staticFiles = collectStaticRanklistFiles(staticRootDir);
-  const sourceMapFile = path.join(staticRootDir, "_source-map.json");
-  const sourceMap = require("fs").existsSync(sourceMapFile) ? readJson(sourceMapFile) : {};
+  const sourceMapFile = path.join(path.dirname(outputFile), "_source-map.json");
+  const sourceMap = fs.existsSync(sourceMapFile) ? readJson(sourceMapFile) : {};
 
   const unresolvedEntries = [];
   const skippedInvalidContests = [];
@@ -213,26 +236,18 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
   }
 
   const players = [...playerStates.values()]
-    .map((state) => ({
+    .sort(
+      (a, b) =>
+        b.rating - a.rating || b.maxRating - a.maxRating || b.history.length - a.history.length || a.id.localeCompare(b.id),
+    )
+    .map((state, index) => ({
       id: state.id,
       organization: state.organization,
       name: state.name,
       pinyinInitials: getPinyinInitials(state.name),
       history: state.history,
-    }))
-    .sort(
-      (a, b) =>
-        b.rating - a.rating || b.maxRating - a.maxRating || b.history.length - a.history.length || a.id.localeCompare(b.id),
-    );
-
-  for (player of players) {
-    delete player.rating;
-    delete player.maxRating;
-  }
-
-  for (let index = 0; index < players.length; index += 1) {
-    players[index].rank = index + 1;
-  }
+      rank: index + 1,
+    }));
 
   const unresolvedCounts = new Map();
   for (const item of unresolvedEntries) {
@@ -284,6 +299,9 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
   return output;
 }
 
+/**
+ * CLI entry point for teammate Elo generation.
+ */
 function main() {
   const staticRootDir = path.resolve(process.argv[2] || path.join("out", "static-ranklists"));
   const teammateMapFile = path.resolve(process.argv[3] || path.join("out", "teammate-map.json"));

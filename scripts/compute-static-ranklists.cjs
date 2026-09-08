@@ -1,3 +1,6 @@
+/**
+ * Converts SRK source contests into static ranklists for Elo processing.
+ */
 const path = require("path");
 const { convertToStaticRanklist } = require("@algoux/standard-ranklist-utils");
 const {
@@ -12,6 +15,12 @@ const {
 } = require("./lib/ranklist-utils.cjs");
 const crypto = require("crypto");
 
+/**
+ * Extracts the contest date from an ISO start timestamp.
+ *
+ * @param {object} ranklist Ranklist with contest metadata.
+ * @returns {string} `YYYY-MM-DD`, or an empty string when unavailable.
+ */
 function resolveContestDateKey(ranklist) {
   const startAt = ranklist && ranklist.contest ? ranklist.contest.startAt : null;
   if (typeof startAt !== "string") {
@@ -26,6 +35,12 @@ function resolveContestDateKey(ranklist) {
   return trimmed.slice(0, 10);
 }
 
+/**
+ * Builds a contest fingerprint from participant names.
+ *
+ * @param {object} ranklist Ranklist data.
+ * @returns {string} MD5 digest of participant names.
+ */
 function resolveContestUserHash(ranklist) {
   const rows = ranklist.rows;
   const hash = crypto.createHash("md5");
@@ -36,6 +51,12 @@ function resolveContestUserHash(ranklist) {
   return hash.digest("hex");
 }
 
+/**
+ * Removes rows with no submissions while preserving valid original ranks.
+ *
+ * @param {object} staticRanklist Static ranklist to filter.
+ * @returns {{ranklist: object, removedRows: object[]}} Filtered ranklist and removals.
+ */
 function removeTeamsWithoutSubmissions(staticRanklist) {
   const rows = Array.isArray(staticRanklist && staticRanklist.rows) ? staticRanklist.rows : [];
   const removedRows = [];
@@ -84,6 +105,13 @@ function removeTeamsWithoutSubmissions(staticRanklist) {
   return { ranklist: staticRanklist, removedRows };
 }
 
+/**
+ * Generates all static ranklists and writes processing summaries.
+ *
+ * @param {string} collectionDir SRK collection config directory.
+ * @param {string} outputDir Directory for generated outputs.
+ * @returns {Promise<object>} Processing summary.
+ */
 async function computeAllStaticRanklists(collectionDir, outputDir) {
   const files = parseCollectionConfig(collectionDir);
   let generatedCount = 0;
@@ -220,6 +248,11 @@ async function computeAllStaticRanklists(collectionDir, outputDir) {
   return summary;
 }
 
+/**
+ * CLI entry point for static ranklist generation.
+ *
+ * @returns {Promise<void>}
+ */
 async function main() {
   const collectionDir = path.resolve(process.argv[2] || path.join("data", "srk-collection", "official"));
   const outputDir = path.resolve(process.argv[3] || "out");
@@ -235,7 +268,7 @@ async function main() {
   console.log(`Failed: ${summary.failed}`);
 
   if (summary.failed > 0) {
-    console.log(`See ${path.join(path.dirname(outputDir), "static-ranklists-summary.json")} for details.`);
+    console.log(`See ${path.join(outputDir, "_static-ranklists-summary.json")} for details.`);
     process.exitCode = 1;
   }
 }

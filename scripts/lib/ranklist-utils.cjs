@@ -1,6 +1,10 @@
+/**
+ * Ranklist normalization, contest discovery, and file helpers.
+ */
 const fs = require("fs");
 const path = require("path");
 const yaml = require("js-yaml");
+const crypto = require("crypto");
 
 const EXCLUDED_CONTEST_PATTERNS = [
   /world\s*finals?/i,
@@ -64,20 +68,44 @@ const ORGANIZATION_NAME_FIXES = new Map([
   ["金陵中学河西分校", "南京市金陵中学河西分校"],
 ]);
 
+/**
+ * Creates a directory recursively when needed.
+ *
+ * @param {string} dirPath Directory path.
+ */
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
+/**
+ * Reads and parses a UTF-8 JSON file.
+ *
+ * @param {string} filePath File path.
+ * @returns {*} Parsed JSON value.
+ */
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
 }
 
+/**
+ * Writes a JSON file as formatted or minified UTF-8 text.
+ *
+ * @param {string} filePath Output path.
+ * @param {*} value Value to serialize.
+ * @param {boolean} [minify=false] When true, omits whitespace.
+ */
 function writeJson(filePath, value, minify = false) {
   ensureDir(path.dirname(filePath));
   const jsonString = minify ? JSON.stringify(value) : JSON.stringify(value, null, 2);
   fs.writeFileSync(filePath, jsonString, "utf8");
 }
 
+/**
+ * Resolves localized or scalar text fields used by SRK data.
+ *
+ * @param {*} value String, localized object, or missing value.
+ * @returns {string} Resolved text.
+ */
 function resolveText(value) {
   if (typeof value === "string") {
     return value;
@@ -88,12 +116,50 @@ function resolveText(value) {
   return value["zh-CN"] || value.en || value.fallback || Object.values(value).find((v) => typeof v === "string") || "";
 }
 
+/**
+ * Trims whitespace and collapses internal whitespace runs.
+ *
+ * @param {*} value Value to normalize.
+ * @returns {string} Normalized string.
+ */
 function normalize(value) {
   return `${value || ""}`.trim().replace(/\s+/g, " ");
 }
 
+/**
+ * Builds a normalized organization/name pair key.
+ *
+ * @param {string} organization Organization name.
+ * @param {string} name Teammate name.
+ * @returns {string} Stable pair key.
+ */
+function teammatePairKey(organization, name) {
+  return `${normalize(organization)}\u0001${normalize(name)}`;
+}
+
+/**
+ * Builds the stable public ID used for a teammate-organization pair.
+ *
+ * @param {string} organization Organization name.
+ * @param {string} name Teammate name.
+ * @returns {string} Stable `xcpc_` prefixed hash ID.
+ */
+function teammateHashId(organization, name) {
+  const orgNorm = normalize(organization).toLowerCase();
+  const memberNorm = normalize(name).toLowerCase();
+  const raw = `${orgNorm}\u0001${memberNorm}`;
+  const digest = crypto.createHash("sha256").update(raw, "utf8").digest("hex");
+  return `xcpc_${digest.slice(0, 16)}`;
+}
+
+/**
+ * Normalizes an organization name and applies known display-name fixes.
+ *
+ * @param {*} value Organization text or localized object.
+ * @returns {string} Normalized organization name.
+ */
 function normalizeOrganizationName(value) {
-  var normalized = normalize(resolveText(value));
+  let normalized = normalize(resolveText(value));
   if (!normalized) {
     return "";
   }
@@ -105,6 +171,12 @@ function normalizeOrganizationName(value) {
   return ORGANIZATION_NAME_FIXES.get(normalized) || normalized;
 }
 
+/**
+ * Normalizes text into a lossy matching key.
+ *
+ * @param {*} value Text to normalize.
+ * @returns {string} Compact matching key.
+ */
 function normalizeForMatch(value) {
   return normalize(value)
     .toLowerCase()
@@ -112,6 +184,12 @@ function normalizeForMatch(value) {
     .replace(/[()（）·・.,，。:：'"`]/g, "");
 }
 
+/**
+ * Detects names that are placeholders, empty, or coach roles.
+ *
+ * @param {string} name Teammate name.
+ * @returns {boolean} True when the name should not be treated as a participant.
+ */
 function isSpecialMemberName(name) {
   const s = normalize(name);
   if (!s) return true;
@@ -119,6 +197,12 @@ function isSpecialMemberName(name) {
   return /coach|教练/i.test(s);
 }
 
+/**
+ * Checks whether a participant name is usable for Elo identity.
+ *
+ * @param {string} name Teammate name.
+ * @returns {boolean} True when the name is a valid participant name.
+ */
 function isValidParticipantName(name) {
   const s = normalize(name);
   if (!s) return false;
@@ -129,6 +213,11 @@ function isValidParticipantName(name) {
   return /[a-zA-Z\u4e00-\u9fff0-9]/.test(s);
 }
 
+/**
+ * Cleans teammate and organization fields in place on one ranklist row.
+ *
+ * @param {object} row Ranklist row to normalize.
+ */
 function normalizeRowTeamMembers(row) {
   const user = row && row.user ? row.user : {};
   const teamMembers = Array.isArray(user.teamMembers) ? user.teamMembers : [];
@@ -142,7 +231,7 @@ function normalizeRowTeamMembers(row) {
     if (!raw || isSpecialMemberName(raw)) {
       continue;
     }
-    normalized.push({ name: raw.replace(/^\s+|\s+$/g, "") });
+    normalized.push({ name: raw });
   }
 
   user.teamMembers = normalized;
@@ -152,6 +241,12 @@ function normalizeRowTeamMembers(row) {
   row.user = user;
 }
 
+/**
+ * Normalizes teammate and organization fields on every ranklist row.
+ *
+ * @param {object} ranklist Ranklist to normalize in place.
+ * @returns {object} The same ranklist object.
+ */
 function normalizeRanklistTeamMembers(ranklist) {
   const rows = Array.isArray(ranklist && ranklist.rows) ? ranklist.rows : [];
   for (const row of rows) {
@@ -160,6 +255,12 @@ function normalizeRanklistTeamMembers(ranklist) {
   return ranklist;
 }
 
+/**
+ * Assesses participant names and reports invalid or suspicious rows.
+ *
+ * @param {object} ranklist Static ranklist data.
+ * @returns {{invalid: boolean, detail: string, invalidRows: object[]}} Assessment summary.
+ */
 function assessParticipantNames(ranklist) {
   const rows = Array.isArray(ranklist && ranklist.rows) ? ranklist.rows : [];
   if (!rows.length) {
@@ -174,7 +275,6 @@ function assessParticipantNames(ranklist) {
   let invalidCount = 0;
   let strangeCount = 0;
   const invalidRows = [];
-  const strangeRows = [];
 
   for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
     const row = rows[rowIndex];
@@ -219,6 +319,12 @@ function assessParticipantNames(ranklist) {
   };
 }
 
+/**
+ * Recursively collects SRK file entries from a collection config.
+ *
+ * @param {string} collectionDir Directory containing `config.yaml`.
+ * @returns {object[]} Config entries for SRK ranklist files.
+ */
 function parseCollectionConfig(collectionDir) {
   const configPath = path.join(collectionDir, "config.yaml");
   const configRaw = fs.readFileSync(configPath, "utf8");
@@ -230,6 +336,12 @@ function parseCollectionConfig(collectionDir) {
 
   const files = [];
 
+  /**
+   * Walks one config node.
+   *
+   * @param {object} item Config node.
+   * @param {string} basePath Parent path accumulated by the walk.
+   */
   function walk(item, basePath) {
     if (!item || typeof item !== "object") {
       return;
@@ -260,6 +372,13 @@ function parseCollectionConfig(collectionDir) {
   return files;
 }
 
+/**
+ * Returns whether a contest should be omitted from Elo processing.
+ *
+ * @param {object} entry Collection config entry.
+ * @param {object} ranklist Parsed ranklist for the entry.
+ * @returns {{skip: boolean, reason?: string, detail?: string}} Skip decision.
+ */
 function shouldSkipContest(entry, ranklist) {
   const title = resolveText(ranklist && ranklist.contest && ranklist.contest.title);
   const haystack = `${entry.uniqueKey} ${entry.relativeFilePath} ${title}`;
@@ -274,8 +393,20 @@ function shouldSkipContest(entry, ranklist) {
   return { skip: false };
 }
 
+/**
+ * Recursively finds generated `.static.srk.json` files.
+ *
+ * @param {string} rootDir Directory to scan.
+ * @returns {string[]} Absolute paths of static ranklist files.
+ */
 function collectStaticRanklistFiles(rootDir) {
   const files = [];
+
+  /**
+   * Recurses through a directory.
+   *
+   * @param {string} dir Directory to inspect.
+   */
   function walk(dir) {
     const children = fs.readdirSync(dir, { withFileTypes: true });
     for (const child of children) {
@@ -303,6 +434,8 @@ module.exports = {
   readJson,
   resolveText,
   shouldSkipContest,
+  teammateHashId,
+  teammatePairKey,
   isSpecialMemberName,
   isValidParticipantName,
   writeJson,

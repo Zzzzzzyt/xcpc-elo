@@ -1,3 +1,6 @@
+/**
+ * CLI entry point for predicting rankings from registration CSV files.
+ */
 const fs = require("fs");
 const path = require("path");
 const { ArgumentParser } = require("argparse");
@@ -15,6 +18,12 @@ const {
 } = require("./lib/ranking-predictor.cjs");
 const { describeEncoding, readTextFileWithDetectedEncoding, writeTextFileWithEncoding } = require("./lib/text-encoding.cjs");
 
+/**
+ * Parses command-line arguments for ranking prediction.
+ *
+ * @param {string[]} argv Process argument array.
+ * @returns {object} Resolved CLI options.
+ */
 function parseCliArgs(argv) {
   const parser = new ArgumentParser({
     prog: "node scripts/predict-ranking.cjs",
@@ -52,6 +61,9 @@ function parseCliArgs(argv) {
   };
 }
 
+/**
+ * Predicts and writes a ranked CSV from teammate Elo data.
+ */
 function main() {
   const { inputArg, outputArg: outputArgFromCli, eloArg, aggregationMode, verbose } = parseCliArgs(process.argv);
   if (!inputArg) {

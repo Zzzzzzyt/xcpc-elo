@@ -1,15 +1,30 @@
+/**
+ * Codeforces-style Elo rating calculations for ranked contest participants.
+ */
 const MIN_RATING_FOR_SEARCH = -500;
 const MAX_RATING_FOR_SEARCH = 6000;
 const ELO_SCALE = 400;
 const DEFAULT_INITIAL_RATING = 1400;
 const ELO_UPDATE_FACTOR = 0.5;
 
+/**
+ * Parses a contest start time into a sortable timestamp.
+ *
+ * @param {object} contest Contest metadata.
+ * @returns {number} Milliseconds timestamp, or the largest safe integer when missing.
+ */
 function parseContestTimestamp(contest) {
   const startAt = contest && contest.startAt ? contest.startAt : null;
   const ts = startAt ? Date.parse(startAt) : Number.NaN;
   return Number.isFinite(ts) ? ts : Number.MAX_SAFE_INTEGER;
 }
 
+/**
+ * Builds rating/seed lookup helpers for a participant population.
+ *
+ * @param {object[]} rows Teams with numeric `rating` fields.
+ * @returns {object} Seed calculation helper functions.
+ */
 function buildSeedModel(rows) {
   const ratingCountMap = new Map();
   for (const row of rows) {
@@ -23,6 +38,12 @@ function buildSeedModel(rows) {
   const probabilityByDiff = new Map();
   const seedByRating = new Map();
 
+  /**
+   * Returns expected win probability against an opponent with the given rating difference.
+   *
+   * @param {number} diff Query rating minus opponent rating.
+   * @returns {number} Expected score from 0 to 1.
+   */
   function probabilityByDifference(diff) {
     let value = probabilityByDiff.get(diff);
     if (value !== undefined) {
@@ -33,6 +54,12 @@ function buildSeedModel(rows) {
     return value;
   }
 
+  /**
+   * Calculates or returns cached seed against the configured population.
+   *
+   * @param {number} queryRating Rating to seed.
+   * @returns {number} Expected number of teams finishing above the rating.
+   */
   function seedWithPopulation(queryRating) {
     let cached = seedByRating.get(queryRating);
     if (cached !== undefined) {
@@ -50,6 +77,12 @@ function buildSeedModel(rows) {
     return seed;
   }
 
+  /**
+   * Finds the rating whose population seed is closest to a target seed.
+   *
+   * @param {number} targetSeed Seed value to invert.
+   * @returns {number} Rating corresponding to the target seed.
+   */
   function findRatingForSeed(targetSeed) {
     let left = MIN_RATING_FOR_SEARCH;
     let right = MAX_RATING_FOR_SEARCH;
@@ -76,16 +109,35 @@ function buildSeedModel(rows) {
   };
 }
 
+/**
+ * Computes Codeforces-style rating updates and contest statistics.
+ *
+ * @param {object[]} input Contest teams with `rank` and member IDs.
+ * @param {Map<string, object>} playerStates Current player state map.
+ * @returns {Array<object[]|object>} Rating updates and contest statistics.
+ */
 function applyCodeforcesUpdate(input, playerStates) {
   if (input.length < 2) {
     throw new Error("Not enough participants.");
   }
 
+  /**
+   * Reads a player's current rating.
+   *
+   * @param {string} memberId Teammate ID.
+   * @returns {number} Current rating.
+   */
   function getRating(memberId) {
     const state = playerStates.get(memberId);
     return state.rating;
   }
 
+  /**
+   * Aggregates teammate ratings into a team rating.
+   *
+   * @param {object} team Team row containing member IDs.
+   * @returns {number} Aggregate team rating.
+   */
   function calculateTeamRating(team) {
     var total = 0;
     for (const member of team.members) {
@@ -94,10 +146,22 @@ function applyCodeforcesUpdate(input, playerStates) {
     return Math.round(Math.log10(total) * ELO_SCALE);
   }
 
+  /**
+   * Converts a team-level rating to an individual member rating.
+   *
+   * @param {number} rating Team rating.
+   * @param {number} memberCount Team size.
+   * @returns {number} Member rating.
+   */
   function calculateMemberRating(rating, memberCount) {
     return Math.round(rating - ELO_SCALE * Math.log10(memberCount));
   }
 
+  /**
+   * Compares seeded predictions with actual ranks for rated teams.
+   *
+   * @returns {object} Prediction team counts, rank differences, and Spearman coefficient.
+   */
   function calculatePredictionStats() {
     const ratedTeams = [];
 

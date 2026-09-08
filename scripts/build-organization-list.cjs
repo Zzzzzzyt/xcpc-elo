@@ -1,6 +1,16 @@
+/**
+ * Generates an organization list from a teammate map.
+ */
 const path = require("path");
 const { normalize, readJson, writeJson } = require("./lib/ranklist-utils.cjs");
 
+/**
+ * Counts organizations and writes the sorted output JSON.
+ *
+ * @param {string} teammateMapFile Input teammate map path.
+ * @param {string} outputFile Output JSON path.
+ * @returns {object} Organization list data.
+ */
 function buildOrganizationList(teammateMapFile, outputFile) {
   const teammateMap = readJson(teammateMapFile);
   const entries = Array.isArray(teammateMap && teammateMap.entries) ? teammateMap.entries : [];
@@ -27,6 +37,9 @@ function buildOrganizationList(teammateMapFile, outputFile) {
   return output;
 }
 
+/**
+ * CLI entry point for organization list generation.
+ */
 function main() {
   const teammateMapFile = path.resolve(process.argv[2] || path.join("out", "teammate-map.json"));
   const outputFile = path.resolve(process.argv[3] || path.join("out", "organization-list.json"));

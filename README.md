@@ -67,20 +67,6 @@ Arguments:
 - `elo.json` (optional): Elo source JSON, default is `out/teammate-elo.json`.
 - `--mode` (optional): `sum`, `max`, `mean`, or `geometric-mean`.
 
-## Backtest Aggregation Modes
-
-Use the backtest script to compare aggregation modes against historical contest ranklists with pre-contest teammate Elo snapshots:
-
-```bash
-npm run analyze:ranking-prediction
-```
-
-Or run it directly with a custom mode list:
-
-```bash
-node scripts/evaluate-ranking-prediction.cjs --modes max,mean,geometric-mean
-```
-
 ## Key Outputs
 
 - Static ranklists: `out/static-ranklists/*.static.srk.json`
@@ -92,4 +78,7 @@ node scripts/evaluate-ranking-prediction.cjs --modes max,mean,geometric-mean
   - `out/frontend/index.html`
   - `out/frontend/styles.css`
   - `out/frontend/app.js`
+  - `out/frontend/common.js`
+  - `out/frontend/contests.html`
+  - `out/frontend/contests.js`
   - `out/frontend/data.js`
