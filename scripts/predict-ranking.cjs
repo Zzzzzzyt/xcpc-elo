@@ -84,10 +84,10 @@ function main() {
 
   const { teammateIndexes, organizationIndex } = detectColumnIndexes(parsedCsv.headers);
   if (!teammateIndexes.length) {
-    throw new Error("No teammate columns found. Header must contain /teammate/i or /队员/i.");
+    throw new Error("No teammate columns found. Header must contain /teammate|队员|member/i.");
   }
   if (organizationIndex < 0) {
-    throw new Error("No organization column found. Header must contain /school|university|学校|院校/i.");
+    throw new Error("No organization column found. Header must contain /school|university|学校|院校|organization/i.");
   }
 
   const ratingIndex = buildRatingIndex(readJson(eloJsonPath));

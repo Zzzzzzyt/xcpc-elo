@@ -33,8 +33,8 @@ This runs the full workflow in order:
 Use `scripts/predict-ranking.cjs` to estimate team ranking from teammate Elo.
 
 The CSV file should have the following columns:
-- `school|university|学校|院校`
-- `[teammate|队员]<1|2|3>` (at least one teammate column is required)
+- `school|university|学校|院校|organization`
+- `[teammate|队员|member]<1|2|3>` (at least one teammate column is required)
 
 Unmatched teammates are ignored when aggregating Elo. If a team has no matched teammates, its predicted score is `0`, so it falls to the bottom of the predicted ranking.
 
