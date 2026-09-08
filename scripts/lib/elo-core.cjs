@@ -2,7 +2,7 @@ const MIN_RATING_FOR_SEARCH = -500;
 const MAX_RATING_FOR_SEARCH = 6000;
 const ELO_SCALE = 400;
 const DEFAULT_INITIAL_RATING = 1400;
-const ELO_UPDATE_FACTOR = 0.8;
+const ELO_UPDATE_FACTOR = 0.5;
 
 function parseContestTimestamp(contest) {
   const startAt = contest && contest.startAt ? contest.startAt : null;
@@ -76,8 +76,8 @@ function buildSeedModel(rows) {
   };
 }
 
-function applyCodeforcesUpdate(participants, playerStates) {
-  if (participants.length < 2) {
+function applyCodeforcesUpdate(input, playerStates) {
+  if (input.length < 2) {
     throw new Error("Not enough participants.");
   }
 
@@ -98,7 +98,34 @@ function applyCodeforcesUpdate(participants, playerStates) {
     return Math.round(rating - ELO_SCALE * Math.log10(memberCount));
   }
 
-  const teams = participants.map((team) => ({
+  function calculatePredictionStats() {
+    const ratedTeams = [];
+
+    for (const team of teams) {
+      if (team.members.every((member) => playerStates.get(member).history.length >= 3)) {
+        ratedTeams.push({ actualRank: ratedTeams.length + 1, rating: team.rating });
+      }
+    }
+
+    const predictedOrder = [...ratedTeams].sort((left, right) => right.rating - left.rating);
+    predictedOrder.forEach((team, index) => {
+      team.predictedRank = index + 1;
+    });
+
+    var spearmanSum = 0;
+    for (const team of ratedTeams) {
+      const diff = team.predictedRank - team.actualRank;
+      spearmanSum += diff * diff;
+    }
+
+    return {
+      predictionTeamCount: ratedTeams.length,
+      predictionRankDifferences: ratedTeams.map((team) => team.predictedRank - team.actualRank),
+      predictionSpearman: 1 - (6 * spearmanSum) / (ratedTeams.length * (ratedTeams.length * ratedTeams.length - 1)),
+    };
+  }
+
+  const teams = input.map((team) => ({
     rank: team.rank,
     members: team.members,
     rating: calculateTeamRating(team),
@@ -118,6 +145,8 @@ function applyCodeforcesUpdate(participants, playerStates) {
     const middleRank = Math.sqrt(row.rank * row.seed);
     row.neededRating = seedModel.findRatingForSeed(middleRank);
   }
+
+  const predictionStats = calculatePredictionStats();
 
   const output = [];
   for (const row of teams) {
@@ -165,6 +194,7 @@ function applyCodeforcesUpdate(participants, playerStates) {
     adjustment2: inc2,
     topCount,
     sumDeltaFinal,
+    ...predictionStats,
   };
 
   return [output, statistics];

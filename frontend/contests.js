@@ -12,6 +12,7 @@
   const title = document.getElementById("contestTitle");
   const meta = document.getElementById("contestMeta");
   const statistics = document.getElementById("contestStatistics");
+  const predictionHistogram = document.getElementById("predictionHistogram");
   const body = document.getElementById("contestParticipantsBody");
   const hint = document.getElementById("contestHint");
   document.getElementById("subtitle").textContent = `共 ${data.contests.length.toLocaleString()} 场比赛`;
@@ -58,9 +59,8 @@
         `${contest.title || `比赛 #${index}`} ${contest.startAt ? `· ${new Date(contest.startAt).toLocaleDateString("zh-CN")}` : ""}`,
       ),
     );
-    const requested = applyRequestedContest && requestedContestKey
-      ? matches.find((item) => item.contest.key === requestedContestKey)
-      : null;
+    const requested =
+      applyRequestedContest && requestedContestKey ? matches.find((item) => item.contest.key === requestedContestKey) : null;
     if (requested) {
       select.value = `${requested.index}`;
       applyRequestedContest = false;
@@ -77,6 +77,7 @@
       title.textContent = "没有符合筛选条件的比赛";
       meta.textContent = "请调整比赛系列或年份。";
       statistics.innerHTML = "";
+      clearPredictionHistogram();
       body.innerHTML = "";
       hint.textContent = "";
       return;
@@ -101,11 +102,14 @@
     title.textContent = contest.title || `比赛 #${index}`;
     meta.textContent = `${contest.startAt ? new Date(contest.startAt).toLocaleString("zh-CN") : "日期未知"} · ${participants.length} 名参赛选手`;
     const d = contest.statistics || {};
+    drawPredictionHistogram(d.predictionRankDifferences);
     statistics.innerHTML = [
       ["首次参赛", d.firstTimeParticipantCount],
       ["Delta 合计", signed(d.sumDeltaFinal)],
       ["Delta 调整", d.adjustment1],
       ["Top 调整", Number.isFinite(d.topCount) ? `${d.topCount}（${signed(d.adjustment2)}）` : "-"],
+      ["预测队伍数", d.predictionTeamCount],
+      ["预测相关系数", d.predictionSpearman.toFixed(4)],
     ]
       .map(
         ([label, value]) =>
@@ -129,6 +133,58 @@
       })
       .join("");
     hint.textContent = participants.length ? `按比赛名次排序，共 ${participants.length} 名选手。` : "暂无参赛记录。";
+  }
+
+  function drawPredictionHistogram(values) {
+    const differences = Array.isArray(values) ? values.filter((value) => Number.isFinite(value)) : [];
+    if (!differences.length) {
+      clearPredictionHistogram();
+      return;
+    }
+    if (!window.Plotly || typeof window.Plotly.react !== "function") {
+      predictionHistogram.innerHTML =
+        "<p style='padding:12px;font-size:13px;color:var(--muted)'>图表组件未加载，无法显示排名预测误差。</p>";
+      return;
+    }
+    const styles = getComputedStyle(document.documentElement);
+    const textColor = styles.getPropertyValue("--ink").trim() || "#1f2d33";
+    const gridColor = styles.getPropertyValue("--chart-grid").trim() || "rgba(16,33,39,0.1)";
+    const accent = styles.getPropertyValue("--accent").trim() || "#107a70";
+    window.Plotly.react(
+      predictionHistogram,
+      [
+        {
+          x: differences,
+          type: "histogram",
+          xbins: { size: 1 },
+          marker: { color: accent, line: { color: accent, width: 1 } },
+          hovertemplate: "排名差 %{x}<br>人数 %{y}<extra></extra>",
+        },
+      ],
+      {
+        bargap: 0.2,
+        margin: { l: 44, r: 16, t: 12, b: 42 },
+        paper_bgcolor: "rgba(0,0,0,0)",
+        plot_bgcolor: "rgba(0,0,0,0)",
+        xaxis: {
+          title: "预测排名 − 实际排名",
+          color: textColor,
+          gridcolor: gridColor,
+          zeroline: true,
+          zerolinecolor: gridColor,
+        },
+        yaxis: { title: "人数", color: textColor, gridcolor: gridColor, rangemode: "tozero" },
+        showlegend: false,
+      },
+      { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["select2d", "lasso2d", "autoScale2d"] },
+    );
+  }
+
+  function clearPredictionHistogram() {
+    if (window.Plotly && typeof window.Plotly.purge === "function") {
+      window.Plotly.purge(predictionHistogram);
+    }
+    predictionHistogram.innerHTML = "<p class='hint' style='padding:12px'>暂无可用的赛前排名预测数据。</p>";
   }
 
   function addOption(element, value, label) {

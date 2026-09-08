@@ -96,7 +96,7 @@ async function computeAllStaticRanklists(collectionDir, outputDir) {
 
   for (const entry of files) {
     const srcFilePath = path.join(collectionDir, entry.relativeFilePath);
-    const outFilePath = path.join(outputDir, `${entry.uniqueKey}.static.srk.json`);
+    const outFilePath = path.join(outputDir, `static-ranklists/${entry.uniqueKey}.static.srk.json`);
 
     try {
       const ranklist = normalizeRanklistTeamMembers(readJson(srcFilePath));
@@ -214,7 +214,7 @@ async function computeAllStaticRanklists(collectionDir, outputDir) {
     failures,
   };
 
-  writeJson(path.join(outputDir, "_summary.json"), summary);
+  writeJson(path.join(outputDir, "_static-ranklists-summary.json"), summary);
   writeJson(path.join(outputDir, "_source-map.json"), generatedSourcePaths);
   writeJson(path.join(outputDir, "_invalid-teammates.json"), invalidNameItems);
   return summary;
@@ -222,7 +222,7 @@ async function computeAllStaticRanklists(collectionDir, outputDir) {
 
 async function main() {
   const collectionDir = path.resolve(process.argv[2] || path.join("data", "srk-collection", "official"));
-  const outputDir = path.resolve(process.argv[3] || path.join("out", "static-ranklists"));
+  const outputDir = path.resolve(process.argv[3] || "out");
 
   console.log(`Using collection: ${collectionDir}`);
   console.log(`Writing outputs to: ${outputDir}`);
@@ -235,7 +235,7 @@ async function main() {
   console.log(`Failed: ${summary.failed}`);
 
   if (summary.failed > 0) {
-    console.log(`See ${path.join(outputDir, "_summary.json")} for details.`);
+    console.log(`See ${path.join(path.dirname(outputDir), "static-ranklists-summary.json")} for details.`);
     process.exitCode = 1;
   }
 }

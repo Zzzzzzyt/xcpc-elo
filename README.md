@@ -84,8 +84,8 @@ node scripts/evaluate-ranking-prediction.cjs --modes max,mean,geometric-mean
 ## Key Outputs
 
 - Static ranklists: `out/static-ranklists/*.static.srk.json`
-- Static generation summary: `out/static-ranklists/_summary.json`
-- Static invalid teammate report: `out/static-ranklists/_invalid-teammates.json`
+- Static generation summary: `out/_static-ranklists-summary.json`
+- Static invalid teammate report: `out/_invalid-teammates.json`
 - Teammate map: `out/teammate-map.json`
 - Elo data: `out/teammate-elo.json`
 - Frontend:

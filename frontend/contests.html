@@ -30,6 +30,9 @@
           <p id="contestMeta" class="hint"></p>
         </div>
         <div id="contestStatistics" class="statistic-grid"></div>
+        <div class="chart-wrap">
+          <div id="predictionHistogram" aria-label="赛前排名预测误差直方图"></div>
+        </div>
         <div class="table-wrap">
           <table>
             <thead>
@@ -51,6 +54,11 @@
       </section>
     </main>
     <script src="./data.js"></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@3.5.1/plotly.min.js"
+      integrity="sha256-3y1u9/3WPP9LlwnQaIvfiGWzTmM0YznGabosLtdbL28="
+      crossorigin="anonymous"
+    ></script>
     <script src="./contests.js"></script>
   </body>
 </html>
