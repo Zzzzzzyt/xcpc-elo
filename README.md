@@ -1,7 +1,6 @@
 # xcpc-elo
 
-Pipeline utilities for building an XCPC teammate Elo dashboard from:
-- `data/srk-collection` ranklists
+Pipeline utilities for building an XCPC teammate Elo dashboard from [algoux/srk-collection](https://github.com/algoux/srk-collection) ranklists
 
 ## Setup
 
