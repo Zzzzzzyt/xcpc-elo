@@ -10,6 +10,14 @@
   }
 
   const { colorizeRating, escapeHtml, formatDelta, updateUrl } = window.xcpcFrontendUtils;
+  const contestDisplayTitle = (contest, index) => {
+    if (!contest) return `比赛 #${index}`;
+    if (!contest.alias) return contest.title || `比赛 #${index}`;
+    const series = seriesLabel(contestSeries(contest.sourcePath));
+    const year = contest.startAt ? new Date(contest.startAt).getFullYear() : "";
+    const prefix = [series, year].filter(Boolean).join(" ");
+    return prefix ? `${prefix} · ${contest.alias}` : contest.alias;
+  };
   const select = document.getElementById("contestSelect");
   const seriesSelect = document.getElementById("seriesSelect");
   const yearSelect = document.getElementById("yearSelect");
@@ -59,13 +67,7 @@
         (!seriesSelect.value || item.series === seriesSelect.value) && (!yearSelect.value || item.year === yearSelect.value),
     );
     select.innerHTML = "";
-    matches.forEach(({ contest, index }) =>
-      addOption(
-        select,
-        `${index}`,
-        `${contest.title || `比赛 #${index}`} ${contest.startAt ? `· ${new Date(contest.startAt).toLocaleDateString("zh-CN")}` : ""}`,
-      ),
-    );
+    matches.forEach(({ contest, index }) => addOption(select, `${index}`, `${contestDisplayTitle(contest, index)}`));
     const requested =
       applyRequestedContest && requestedContestKey ? matches.find((item) => item.contest.key === requestedContestKey) : null;
     if (requested) {
@@ -271,5 +273,4 @@
     };
     return `${provinceNames[provinceId] || provinceId.toUpperCase()}`;
   }
-
 })();

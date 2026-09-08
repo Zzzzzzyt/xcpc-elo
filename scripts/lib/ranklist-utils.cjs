@@ -361,6 +361,8 @@ function parseCollectionConfig(collectionDir) {
       files.push({
         uniqueKey: item.path,
         relativeFilePath: `${currentPath}.${item.format}`,
+        // The collection config name is the curated short label used by the UI.
+        alias: typeof item.name === "string" ? item.name.trim() : "",
       });
     }
   }

@@ -52,7 +52,7 @@ function resolveContestUserHash(ranklist) {
 }
 
 /**
- * Removes rows with no submissions while preserving valid original ranks.
+ * Removes rows with no submissions while preserving rank values as supplied.
  *
  * @param {object} staticRanklist Static ranklist to filter.
  * @returns {{ranklist: object, removedRows: object[]}} Filtered ranklist and removals.
@@ -61,16 +61,14 @@ function removeTeamsWithoutSubmissions(staticRanklist) {
   const rows = Array.isArray(staticRanklist && staticRanklist.rows) ? staticRanklist.rows : [];
   const removedRows = [];
   const keptRows = [];
-  const removedRowIndexes = new Set();
 
   for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
     const row = rows[rowIndex];
     const hasSubmission = Array.isArray(row && row.statuses) && row.statuses.some((problem) => problem.result !== null);
     if (hasSubmission) {
-      keptRows.push({ row, rowIndex });
+      keptRows.push(row);
     } else {
       removedRows.push({ rowIndex, rank: rowIndex + 1, row });
-      removedRowIndexes.add(rowIndex);
     }
   }
 
@@ -80,28 +78,10 @@ function removeTeamsWithoutSubmissions(staticRanklist) {
     return { ranklist: staticRanklist, removedRows };
   }
 
-  const removedBeforeByRowIndex = new Map();
-  let removedBefore = 0;
-  for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
-    removedBeforeByRowIndex.set(rowIndex, removedBefore);
-    if (removedRowIndexes.has(rowIndex)) {
-      removedBefore += 1;
-    }
-  }
-
-  for (const item of keptRows) {
-    const offset = removedBeforeByRowIndex.get(item.rowIndex) || 0;
-    if (Array.isArray(item.row.rankValues)) {
-      item.row.rankValues = item.row.rankValues.map((rankValue) => {
-        if (!rankValue || !Number.isFinite(rankValue.rank)) {
-          return rankValue;
-        }
-        return { ...rankValue, rank: rankValue.rank - offset };
-      });
-    }
-  }
-
-  staticRanklist.rows = keptRows.map((item) => item.row);
+  // Rank values depend on contest-specific rules and cannot be safely
+  // recalculated here. They are not consumed by the Elo pipeline, so leave
+  // them untouched when filtering rows.
+  staticRanklist.rows = keptRows;
   return { ranklist: staticRanklist, removedRows };
 }
 
@@ -185,6 +165,13 @@ async function computeAllStaticRanklists(collectionDir, outputDir) {
       });
 
       const staticRanklist = convertToStaticRanklist(ranklist);
+      // Preserve the collection's curated short name alongside the original
+      // SRK contest title. This intentionally extends the generated static
+      // format for dashboard consumption.
+      if (entry.alias) {
+        staticRanklist.contest = staticRanklist.contest || {};
+        staticRanklist.contest.alias = entry.alias;
+      }
       const noSubmissionResult = removeTeamsWithoutSubmissions(staticRanklist);
       if (noSubmissionResult.removedRows.length > 0) {
         invalidNameItems.push({

@@ -9,6 +9,46 @@
     return;
   }
 
+  const contestDisplayTitle = (contest, index) => {
+    if (!contest) return `比赛 #${index}`;
+    if (!contest.alias) return contest.title || `比赛 #${index}`;
+    const parts = `${contest.sourcePath || ""}`.split("/").filter(Boolean);
+    const series = parts[0] === "provincial" && parts[1] ? provincialSeriesLabel(parts[1]) : (parts[0] || "").toUpperCase();
+    const year = contest.startAt ? new Date(contest.startAt).getFullYear() : "";
+    const prefix = [series, year].filter(Boolean).join(" ");
+    return prefix ? `${prefix} · ${contest.alias}` : contest.alias;
+  };
+
+  function provincialSeriesLabel(value) {
+    const names = {
+      ah: "安徽省赛",
+      bj: "北京市赛",
+      cq: "重庆省赛",
+      fj: "福建省赛",
+      gd: "广东省赛",
+      gx: "广西省赛",
+      gz: "贵州省赛",
+      ha: "河南省赛",
+      hb: "湖北省赛",
+      he: "河北省赛",
+      hl: "黑龙江省赛",
+      hn: "湖南省赛",
+      jl: "吉林省赛",
+      js: "江苏省赛",
+      jx: "江西省赛",
+      ln: "辽宁省赛",
+      nm: "内蒙古省赛",
+      northeast: "东北地区赛",
+      sc: "四川省赛",
+      sd: "山东省赛",
+      sh: "上海市赛",
+      sn: "陕西省赛",
+      xj: "新疆省赛",
+      zj: "浙江省赛",
+    };
+    return names[value] || value.toUpperCase();
+  }
+
   const { colorizeRating, escapeHtml, formatDelta, updateUrl } = window.xcpcFrontendUtils;
   const contests = data.contests;
   const contestTimestampByIndex = contests.map((contest) => parseContestStartTimestamp(contest && contest.startAt));
@@ -57,7 +97,8 @@
     sortBy: "current",
     lastCompetedSince: "",
     lastCompetedSinceTimestamp: null,
-    selectedId: requestedPlayerId && playerById.has(requestedPlayerId) ? requestedPlayerId : players.length ? players[0].id : null,
+    selectedId:
+      requestedPlayerId && playerById.has(requestedPlayerId) ? requestedPlayerId : players.length ? players[0].id : null,
   };
 
   const subtitle = document.getElementById("subtitle");
@@ -262,7 +303,7 @@
     for (const event of player.history) {
       const contest = event.contest;
       sequence.push({
-        label: contest && contest.title ? contest.title : `比赛 #${event.contestId}`,
+        label: contestDisplayTitle(contest, event.contestId),
         date: contest && contest.startAt ? contest.startAt : null,
         rating: event.newRating,
         delta: event.delta,
@@ -360,9 +401,9 @@
         const dateText = contest && contest.startAt ? new Date(contest.startAt).toLocaleDateString("zh-CN") : "-";
         return `
           <tr>
-            <td>${contest ? `<a href="./contests.html?contest=${encodeURIComponent(contest.key)}" target="_blank" rel="noopener noreferrer">${escapeHtml(contest.title || `比赛 #${event.contestId}`)}</a>` : escapeHtml(`比赛 #${event.contestId}`)}</td>
-            <td class="mono">${escapeHtml(dateText)}</td>
+            <td>${contest ? `<a href="./contests.html?contest=${encodeURIComponent(contest.key)}" target="_blank" rel="noopener noreferrer">${escapeHtml(contestDisplayTitle(contest, event.contestId))}</a>` : escapeHtml(`比赛 #${event.contestId}`)}</td>
             <td class="mono">${event.rank}</td>
+            <td class="mono">${formatRatingColored(event.performanceRating, event.performanceRating)}</td>
             <td class="${deltaClass} mono">${formatDelta(delta)}</td>
             <td class="mono">${formatRatingColored(event.newRating, event.newRating)}</td>
           </tr>
@@ -552,5 +593,4 @@
     }
     return new Date(value).toLocaleDateString("zh-CN");
   }
-
 })();

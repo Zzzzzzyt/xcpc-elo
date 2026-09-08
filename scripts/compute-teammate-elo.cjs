@@ -179,6 +179,7 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
     const contestKey = path.basename(filePath, ".static.srk.json");
     const contest = ranklist && ranklist.contest ? ranklist.contest : {};
     const title = resolveText(contest.title) || contestKey;
+    const alias = resolveText(contest.alias) || null;
 
     const participants = buildContestParticipants(ranklist, contestKey, teammateIndex, unresolvedEntries);
     if (participants.length > 0) {
@@ -187,6 +188,7 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
         file: path.relative(staticRootDir, filePath).replace(/\\/g, "/"),
         sourcePath: sourceMap[path.basename(filePath)] || null,
         title,
+        alias,
         startAt: contest.startAt || null,
         timestamp: parseContestTimestamp(contest),
         participants,
@@ -286,6 +288,7 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
       file: contest.file,
       sourcePath: contest.sourcePath,
       title: contest.title,
+      alias: contest.alias,
       startAt: contest.startAt,
       participantCount: contest.participants.length,
       statistics: contest.statistics || null,
