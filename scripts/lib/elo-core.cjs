@@ -6,6 +6,7 @@ const MAX_RATING_FOR_SEARCH = 6000;
 const ELO_SCALE = 400;
 const DEFAULT_INITIAL_RATING = 1400;
 const ELO_UPDATE_FACTOR = 0.5;
+const ELO_ADJUST_TOP_DELTA = true;
 
 /**
  * Parses a contest start time into a sortable timestamp.
@@ -237,12 +238,16 @@ function applyCodeforcesUpdate(input, playerStates) {
     row.delta += inc1;
   }
 
-  const topCount = Math.min(output.length, Math.round(4 * Math.sqrt(output.length)));
-  const sumTop = output.slice(0, topCount).reduce((acc, row) => acc + row.delta, 0);
-  let inc2 = Math.trunc(-sumTop / topCount);
-  inc2 = Math.max(-10, Math.min(0, inc2));
-  for (const row of output) {
-    row.delta += inc2;
+  let inc2 = 0;
+  let topCount = 0;
+  if (ELO_ADJUST_TOP_DELTA) {
+    topCount = Math.min(output.length, Math.round(4 * Math.sqrt(output.length)));
+    const sumTop = output.slice(0, topCount).reduce((acc, row) => acc + row.delta, 0);
+    inc2 = Math.trunc(-sumTop / topCount);
+    inc2 = Math.max(-10, Math.min(0, inc2));
+    for (const row of output) {
+      row.delta += inc2;
+    }
   }
 
   const sumDeltaFinal = output.reduce((acc, row) => acc + row.delta, 0);
