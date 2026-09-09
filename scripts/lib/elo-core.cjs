@@ -1,25 +1,20 @@
 /**
  * Codeforces-style Elo rating calculations for ranked contest participants.
  */
-const MIN_RATING_FOR_SEARCH = -500;
-const MAX_RATING_FOR_SEARCH = 6000;
-const ELO_SCALE = 400;
-const DEFAULT_INITIAL_RATING = 1400;
-const ELO_UPDATE_FACTOR = 0.5;
-const ELO_RANK_FACTOR = 0.5;
-const ELO_ADJUST_TOP_DELTA = true;
-
-/**
- * Parses a contest start time into a sortable timestamp.
- *
- * @param {object} contest Contest metadata.
- * @returns {number} Milliseconds timestamp, or the largest safe integer when missing.
- */
-function parseContestTimestamp(contest) {
-  const startAt = contest && contest.startAt ? contest.startAt : null;
-  const ts = startAt ? Date.parse(startAt) : Number.NaN;
-  return Number.isFinite(ts) ? ts : Number.MAX_SAFE_INTEGER;
+const MIN_RATING_FOR_SEARCH = -20000;
+const MAX_RATING_FOR_SEARCH = 20000;
+function envNumber(name, fallback) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) ? value : fallback;
 }
+
+const ELO_SCALE = envNumber("XCPC_ELO_SCALE", 400);
+const ELO_INITIAL_RATING = envNumber("XCPC_ELO_INITIAL_RATING", 1400);
+const ELO_UPDATE_FACTOR = envNumber("XCPC_ELO_UPDATE_FACTOR", 0.6);
+const ELO_RANK_FACTOR = envNumber("XCPC_ELO_RANK_FACTOR", 0.5);
+const ELO_SEARCH_OFFSET = envNumber("XCPC_ELO_SEARCH_OFFSET", 0.5);
+const ELO_ADJUST_TOP_DELTA =
+  process.env.XCPC_ELO_ADJUST_TOP_DELTA === undefined ? false : process.env.XCPC_ELO_ADJUST_TOP_DELTA !== "false";
 
 /**
  * Builds rating/seed lookup helpers for a participant population.
@@ -92,7 +87,7 @@ function buildSeedModel(rows) {
     while (left < right) {
       const middle = (left + right) >> 1;
       const middleSeed = seedWithPopulation(middle);
-      if (middleSeed > targetSeed + 0.5) {
+      if (middleSeed > targetSeed + ELO_SEARCH_OFFSET) {
         left = middle + 1;
       } else {
         right = middle;
@@ -168,7 +163,7 @@ function applyCodeforcesUpdate(input, playerStates) {
     const ratedTeams = [];
 
     for (const team of teams) {
-      if (team.members.every((member) => playerStates.get(member).history.length >= 3)) {
+      if (team.members.every((member) => playerStates.get(member).history.length >= 2)) {
         ratedTeams.push({ actualRank: ratedTeams.length + 1, rating: team.rating });
       }
     }
@@ -254,13 +249,21 @@ function applyCodeforcesUpdate(input, playerStates) {
 
   const sumDeltaFinal = output.reduce((acc, row) => acc + row.delta, 0);
 
-  const firstTimeParticipantCount = output.reduce((count, participant) => {
-    const state = playerStates.get(participant.id);
-    return count + (state && state.history.length === 0 ? 1 : 0);
-  }, 0);
+  var firstTimeParticipantCount = 0;
+  var firstTimeParticipantRatingSum = 0;
+  var ratingSum = 0;
+  for (const participant of output) {
+    if (playerStates.get(participant.id).history.length == 0) {
+      firstTimeParticipantCount++;
+      firstTimeParticipantRatingSum += participant.rating + participant.delta;
+    }
+    ratingSum += participant.rating + participant.delta;
+  }
 
   const statistics = {
     firstTimeParticipantCount,
+    firstTimeParticipantRatingSum,
+    ratingSum,
     adjustment1: inc1,
     adjustment2: inc2,
     topCount,
@@ -273,8 +276,7 @@ function applyCodeforcesUpdate(input, playerStates) {
 
 module.exports = {
   applyCodeforcesUpdate,
-  parseContestTimestamp,
-  DEFAULT_INITIAL_RATING,
+  ELO_INITIAL_RATING,
   ELO_SCALE,
   ELO_UPDATE_FACTOR,
 };

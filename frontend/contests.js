@@ -117,11 +117,17 @@
     drawPredictionHistogram(d.predictionRankDifferences);
     statistics.innerHTML = [
       ["首次参赛", d.firstTimeParticipantCount],
+      ["首次参赛平均 rating", d.firstTimeParticipantRatingSum / d.firstTimeParticipantCount],
+      [
+        "非首次参赛平均 rating",
+        (d.ratingSum - d.firstTimeParticipantRatingSum) / (participants.length - d.firstTimeParticipantCount),
+      ],
+      ["平均 rating", d.ratingSum / participants.length],
       ["Delta 合计", formatDelta(d.sumDeltaFinal)],
       ["Delta 调整", d.adjustment1],
-      ["Top 调整", Number.isFinite(d.topCount) ? `${d.topCount}（${formatDelta(d.adjustment2)}）` : "-"],
+      // ["Top 调整", Number.isFinite(d.topCount) ? `${d.topCount}（${formatDelta(d.adjustment2)}）` : "-"],
       ["预测队伍数", d.predictionTeamCount],
-      ["预测相关系数", d.predictionSpearman.toFixed(4)],
+      ["预测相关系数", d.predictionSpearman ? d.predictionSpearman.toFixed(4) : "N/A"],
     ]
       .map(
         ([label, value]) =>

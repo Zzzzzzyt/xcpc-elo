@@ -3,13 +3,7 @@
  */
 const fs = require("fs");
 const path = require("path");
-const {
-  applyCodeforcesUpdate,
-  parseContestTimestamp,
-  DEFAULT_INITIAL_RATING,
-  ELO_SCALE,
-  ELO_UPDATE_FACTOR,
-} = require("./lib/elo-core.cjs");
+const { applyCodeforcesUpdate, ELO_INITIAL_RATING, ELO_SCALE, ELO_UPDATE_FACTOR } = require("./lib/elo-core.cjs");
 const {
   collectStaticRanklistFiles,
   normalize,
@@ -20,6 +14,18 @@ const {
   writeJson,
 } = require("./lib/ranklist-utils.cjs");
 const { getPinyinInitials } = require("./lib/pinyin-utils.cjs");
+
+/**
+ * Parses a contest start time into a sortable timestamp.
+ *
+ * @param {object} contest Contest metadata.
+ * @returns {number} Milliseconds timestamp, or the largest safe integer when missing.
+ */
+function parseContestTimestamp(contest) {
+  const startAt = contest && contest.startAt ? contest.startAt : null;
+  const ts = startAt ? Date.parse(startAt) : Number.NaN;
+  return Number.isFinite(ts) ? ts : Number.MAX_SAFE_INTEGER;
+}
 
 /**
  * Indexes teammate map entries by stable ID and organization/name pair.
@@ -108,9 +114,9 @@ function buildContestParticipants(ranklist, contestKey, teammateIndex, unresolve
   const rows = Array.isArray(ranklist && ranklist.rows) ? ranklist.rows : [];
   const output = [];
 
+  let rank = 1;
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index];
-    const rank = index + 1;
     const user = row && row.user ? row.user : {};
     const organization = normalize(resolveText(user.organization));
     const teamMembers = Array.isArray(user.teamMembers) ? user.teamMembers : [];
@@ -118,7 +124,7 @@ function buildContestParticipants(ranklist, contestKey, teammateIndex, unresolve
     if (!organization || !teamMembers.length) {
       unresolvedEntries.push({
         contestKey,
-        rank,
+        index,
         reason: !organization ? "missing-organization" : "missing-team-members",
       });
       continue;
@@ -129,7 +135,7 @@ function buildContestParticipants(ranklist, contestKey, teammateIndex, unresolve
       if (!name) {
         unresolvedEntries.push({
           contestKey,
-          rank,
+          index,
           reason: "empty-member-name",
         });
         continue;
@@ -139,7 +145,7 @@ function buildContestParticipants(ranklist, contestKey, teammateIndex, unresolve
       if (!id) {
         unresolvedEntries.push({
           contestKey,
-          rank,
+          index,
           reason: "unresolvable-member",
           organization,
           name,
@@ -149,6 +155,7 @@ function buildContestParticipants(ranklist, contestKey, teammateIndex, unresolve
       outputMembers.push(id);
     }
     output.push({ rank, members: outputMembers });
+    rank++;
   }
 
   return output;
@@ -310,7 +317,7 @@ function main() {
   const teammateMapFile = path.resolve(process.argv[3] || path.join("out", "teammate-map.json"));
   const outputFile = path.resolve(process.argv[4] || path.join("out", "teammate-elo.json"));
   const initialRatingArg = Number.parseInt(process.argv[5] || "", 10);
-  const initialRating = Number.isFinite(initialRatingArg) ? initialRatingArg : DEFAULT_INITIAL_RATING;
+  const initialRating = Number.isFinite(initialRatingArg) ? initialRatingArg : ELO_INITIAL_RATING;
 
   const result = buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRating);
   console.log(`Used contests: ${result.totals.contests}`);

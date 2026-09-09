@@ -9,7 +9,7 @@ const TEAMMATE_HEADER_PATTERN = /teammate|队员|member/i;
 const TEAMMATE_HEADER_BLACKLIST_PATTERN = /rating/i;
 const ORG_HEADER_PATTERN = /school|university|学校|院校|organization/i;
 const NAME_SPLIT_PATTERN = /[;,，、\/\|\n\t]+/;
-const DEFAULT_INITIAL_RATING = 1500;
+const ELO_INITIAL_RATING = 1400;
 const AGGREGATION_MODES = ["sum", "max", "mean", "geometric-mean"];
 const AGGREGATION_MODE_ALIASES = new Map([
 	["sum", "sum"],
@@ -119,7 +119,7 @@ function buildStableTeamKey(organization, teammateNames) {
  * @returns {object} Rating lookup helpers.
  */
 function createRatingIndex({ initialRating, ratingsByPair }) {
-	const resolvedInitialRating = Number.isFinite(initialRating) ? initialRating : DEFAULT_INITIAL_RATING;
+	const resolvedInitialRating = Number.isFinite(initialRating) ? initialRating : ELO_INITIAL_RATING;
 	const normalizedRatings = ratingsByPair instanceof Map ? ratingsByPair : new Map();
 
 	return {
@@ -144,7 +144,7 @@ function createRatingIndex({ initialRating, ratingsByPair }) {
 function buildRatingIndex(eloData) {
 	const configuredInitialRating = Number.isFinite(eloData && eloData.config && eloData.config.initialRating)
 		? eloData.config.initialRating
-		: DEFAULT_INITIAL_RATING;
+		: ELO_INITIAL_RATING;
 	const players = Array.isArray(eloData && eloData.players) ? eloData.players : [];
 	const ratingsByPair = new Map();
 

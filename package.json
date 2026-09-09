@@ -9,6 +9,7 @@
     "step:2b:organization-list": "node scripts/build-organization-list.cjs",
     "step:3:compute-elo": "node scripts/compute-teammate-elo.cjs",
     "step:4:build-frontend": "node scripts/build-elo-frontend.cjs",
+    "experiment:elo-parameters": "node scripts/experiment-elo-parameters.cjs",
     "update:srk-collection": "git submodule foreach git update-index && git submodule foreach git pull origin master",
     "workflow:elo-dashboard": "npm run step:1:static-ranklists && npm run step:2:teammate-org-map && npm run step:3:compute-elo && npm run step:4:build-frontend",
     "build:elo-dashboard": "npm run workflow:elo-dashboard",
