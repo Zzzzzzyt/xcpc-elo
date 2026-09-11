@@ -25,8 +25,6 @@ This runs the full workflow in order:
 4. Build frontend assets  
    `npm run step:4:build-frontend`
 
-`npm run build:elo-dashboard` is an alias of `workflow:elo-dashboard`.
-
 ## Predict Ranking From Registration CSV
 
 Use `scripts/predict-ranking.cjs` to estimate team ranking from teammate Elo.
@@ -68,16 +66,7 @@ Arguments:
 
 ## Key Outputs
 
-- Static ranklists: `out/static-ranklists/*.static.srk.json`
-- Static generation summary: `out/_static-ranklists-summary.json`
-- Static invalid teammate report: `out/_invalid-teammates.json`
+- Invalid teammate report: `out/_invalid-teammates.json`
 - Teammate map: `out/teammate-map.json`
 - Elo data: `out/teammate-elo.json`
-- Frontend:
-  - `out/frontend/index.html`
-  - `out/frontend/styles.css`
-  - `out/frontend/app.js`
-  - `out/frontend/common.js`
-  - `out/frontend/contests.html`
-  - `out/frontend/contests.js`
-  - `out/frontend/data.js`
+- Frontend: `out/frontend/*`
