@@ -237,7 +237,15 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
       state.rating = newRating;
       state.maxRating = Math.max(state.maxRating, newRating);
       state.lastDelta = item.delta;
-      state.history.push([contest.index, item.rank, item.delta, newRating, item.performanceRating, item.seed.toFixed(3)]);
+      state.history.push([
+        contest.index,
+        item.rank,
+        item.delta,
+        newRating,
+        item.performanceRating,
+        item.seedRating,
+        item.predictedRank,
+      ]);
       totalRatingEvents += 1;
     }
 

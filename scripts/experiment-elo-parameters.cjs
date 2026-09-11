@@ -13,11 +13,11 @@ const teammateMap = path.join(rootDir, "out", "teammate-map.json");
 const experimentDir = fs.mkdtempSync(path.join(os.tmpdir(), "xcpc-elo-experiment-"));
 const sourceMap = path.join(rootDir, "out", "_source-map.json");
 if (fs.existsSync(sourceMap)) fs.copyFileSync(sourceMap, path.join(experimentDir, "_source-map.json"));
-const rankFactors = [0.5];
-const updateFactors = [ 0.5];
+const updateFactors = [0.65];
 const scales = [400];
-const searchOffsets = [0.5, 1, 2];
+const searchOffsets = [0.5, 1, 1.5];
 const adjustTops = [false];
+const seedRankRadii = [2];
 
 function aggregate(output) {
   const values = (output.contests || []).filter((contest) => {
@@ -40,12 +40,12 @@ function aggregate(output) {
 
 const results = [];
 for (const scale of scales) {
-  for (const rankFactor of rankFactors) {
-    for (const updateFactor of updateFactors) {
-      for (const searchOffset of searchOffsets) {
-        for (const adjustTop of adjustTops) {
-          console.log("current:", scale, rankFactor, updateFactor, searchOffset, adjustTop);
-          const outputFile = path.join(experimentDir, `${scale}-${rankFactor}-${updateFactor}.json`);
+  for (const updateFactor of updateFactors) {
+    for (const searchOffset of searchOffsets) {
+      for (const adjustTop of adjustTops) {
+        for (const seedRankRadius of seedRankRadii) {
+          console.log("current:", scale, updateFactor, searchOffset, adjustTop, seedRankRadius);
+          const outputFile = path.join(experimentDir, `tmp-elo.json`);
           const result = spawnSync(
             process.execPath,
             [path.join(rootDir, "scripts", "compute-teammate-elo.cjs"), staticRoot, teammateMap, outputFile],
@@ -54,10 +54,10 @@ for (const scale of scales) {
               env: {
                 ...process.env,
                 XCPC_ELO_SCALE: `${scale}`,
-                XCPC_ELO_RANK_FACTOR: `${rankFactor}`,
                 XCPC_ELO_UPDATE_FACTOR: `${updateFactor}`,
                 XCPC_ELO_SEARCH_OFFSET: `${searchOffset}`,
                 XCPC_ELO_ADJUST_TOP_DELTA: `${adjustTop}`,
+                XCPC_ELO_SEED_RANK_RADIUS: `${seedRankRadius}`,
               },
               encoding: "utf8",
             },
@@ -66,14 +66,14 @@ for (const scale of scales) {
             throw new Error(
               result.stderr ||
                 result.stdout ||
-                `experiment failed: ${scale}/${rankFactor}/${updateFactor}/${searchOffset}/${adjustTop}`,
+                `experiment failed: ${scale}/${updateFactor}/${searchOffset}/${adjustTop}/${seedRankRadius}`,
             );
           results.push({
             scale,
-            rankFactor,
             updateFactor,
             searchOffset,
             adjustTop,
+            seedRankRadius,
             ...aggregate(JSON.parse(fs.readFileSync(outputFile, "utf8"))),
           });
         }

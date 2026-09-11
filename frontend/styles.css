@@ -291,6 +291,11 @@ tbody tr.active {
   font-weight: bold;
 }
 
+tbody tr.team-border {
+  border: 0px solid var(--border);
+  border-top-width: 3px;
+}
+
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 }

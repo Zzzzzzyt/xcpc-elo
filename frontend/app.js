@@ -49,24 +49,14 @@
     return names[value] || value.toUpperCase();
   }
 
-  const { colorizeRating, escapeHtml, formatDelta, updateUrl } = window.xcpcFrontendUtils;
+  const { unpackPlayerHistory, colorizeRating, escapeHtml, formatDelta, updateUrl } = window.xcpcFrontendUtils;
+  unpackPlayerHistory(data);
   const contests = data.contests;
   const contestTimestampByIndex = contests.map((contest) => parseContestStartTimestamp(contest && contest.startAt));
   const initialRating = data.config.initialRating;
   const eloScale = data.config.eloScale;
   const eloUpdateFactor = data.config.eloUpdateFactor;
   const players = data.players.map((player) => {
-    player.history = player.history.map((event) => {
-      return {
-        contestId: event[0],
-        contest: contests[event[0]] || null,
-        rank: event[1],
-        delta: event[2],
-        newRating: event[3],
-        performanceRating: event[4],
-        seed: event[5],
-      };
-    });
     const maxRating = computeMaxRating(player);
     const rating = player.history[player.history.length - 1].newRating;
     const lastDelta = player.history[player.history.length - 1].delta;

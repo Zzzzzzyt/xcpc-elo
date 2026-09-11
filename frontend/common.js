@@ -3,6 +3,28 @@
  */
 window.xcpcFrontendUtils = {
   /**
+   * Unpack compressed player history data.
+   *
+   * @param {object} data Raw packed elo data
+   */
+  unpackPlayerHistory(data) {
+    data.players.forEach((player) => {
+      player.history = player.history.map((event) => {
+        return {
+          contestId: event[0],
+          contest: data.contests[event[0]] || null,
+          rank: event[1],
+          delta: event[2],
+          newRating: event[3],
+          performanceRating: event[4],
+          seedRating: event[5],
+          predictedRank: event[6],
+        };
+      });
+    });
+  },
+
+  /**
    * Formats a signed numeric delta for display.
    *
    * @param {number} value Delta value.

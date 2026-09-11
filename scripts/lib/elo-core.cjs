@@ -10,9 +10,9 @@ function envNumber(name, fallback) {
 
 const ELO_SCALE = envNumber("XCPC_ELO_SCALE", 400);
 const ELO_INITIAL_RATING = envNumber("XCPC_ELO_INITIAL_RATING", 1400);
-const ELO_UPDATE_FACTOR = envNumber("XCPC_ELO_UPDATE_FACTOR", 0.6);
-const ELO_RANK_FACTOR = envNumber("XCPC_ELO_RANK_FACTOR", 0.5);
+const ELO_UPDATE_FACTOR = envNumber("XCPC_ELO_UPDATE_FACTOR", 0.65);
 const ELO_SEARCH_OFFSET = envNumber("XCPC_ELO_SEARCH_OFFSET", 0.5);
+const ELO_SEED_RANK_RADIUS = envNumber("XCPC_ELO_SEED_RANK_RADIUS", 2);
 const ELO_ADJUST_TOP_DELTA =
   process.env.XCPC_ELO_ADJUST_TOP_DELTA === undefined ? false : process.env.XCPC_ELO_ADJUST_TOP_DELTA !== "false";
 
@@ -130,17 +130,44 @@ function applyCodeforcesUpdate(input, playerStates) {
   }
 
   /**
-   * Aggregates teammate ratings into a team rating.
+   * Checks whether a teammate has participated in at least one prior contest.
    *
-   * @param {object} team Team row containing member IDs.
+   * @param {string} memberId Teammate ID.
+   * @returns {boolean} True when the teammate has contest history.
+   */
+  function hasContestHistory(memberId) {
+    return playerStates.get(memberId).history.length > 0;
+  }
+
+  /**
+   * Aggregates the given teammate ratings into a team rating.
+   *
+   * @param {string[]} members Teammate IDs to aggregate.
    * @returns {number} Aggregate team rating.
    */
-  function calculateTeamRating(team) {
+  function aggregateTeamRating(members) {
     var total = 0;
-    for (const member of team.members) {
+    for (const member of members) {
       total += Math.pow(10, getRating(member) / ELO_SCALE);
     }
     return Math.round(Math.log10(total) * ELO_SCALE);
+  }
+
+  /**
+   * Aggregates teammate ratings into a team rating.
+   *
+   * Teammates without contest history only carry their initial rating, so they are
+   * excluded to keep the seed driven by members that have actually competed.
+   *
+   * @param {object} team Team row containing member IDs.
+   * @returns {number|null} Aggregate team rating, or null when no member has history.
+   */
+  function calculateTeamRating(team) {
+    const ratedMembers = team.members.filter(hasContestHistory);
+    if (ratedMembers.length === 0) {
+      return null;
+    }
+    return aggregateTeamRating(ratedMembers);
   }
 
   /**
@@ -155,73 +182,124 @@ function applyCodeforcesUpdate(input, playerStates) {
   }
 
   /**
-   * Compares seeded predictions with actual ranks for rated teams.
+   * Determine if the rank of a team is possible to predict
    *
-   * @returns {object} Prediction team counts, rank differences, and Spearman coefficient.
+   * @param {object} team Team to determine
+   * @returns {boolean} True if the team is eligible for prediction
    */
-  function calculatePredictionStats() {
-    const ratedTeams = [];
-
-    for (const team of teams) {
-      if (team.members.every((member) => playerStates.get(member).history.length >= 2)) {
-        ratedTeams.push({ actualRank: ratedTeams.length + 1, rating: team.rating });
-      }
-    }
-
-    const predictedOrder = [...ratedTeams].sort((left, right) => right.rating - left.rating);
-    predictedOrder.forEach((team, index) => {
-      team.predictedRank = index + 1;
-    });
-
-    var spearmanSum = 0;
-    for (const team of ratedTeams) {
-      const diff = team.predictedRank - team.actualRank;
-      spearmanSum += diff * diff;
-    }
-
-    return {
-      predictionTeamCount: ratedTeams.length,
-      predictionRankDifferences: ratedTeams.map((team) => team.predictedRank - team.actualRank),
-      predictionSpearman: 1 - (6 * spearmanSum) / (ratedTeams.length * (ratedTeams.length * ratedTeams.length - 1)),
-    };
+  function predictionPossible(team) {
+    return team.members.some((member) => playerStates.get(member).history.length > 0);
   }
 
   const teams = input.map((team) => ({
     rank: team.rank,
     members: team.members,
     rating: calculateTeamRating(team),
+    shouldPredict: predictionPossible(team),
+    predictedRank: null,
     seed: 1,
     performanceRating: null,
     neededRating: null,
     delta: 0,
   }));
 
+  const teamsByRank = new Map(teams.map((team) => [team.rank, team]));
+  const ranksWithHistory = new Set(teams.filter((team) => team.rating !== null).map((team) => team.rank));
+  for (const team of teams) {
+    if (team.rating !== null) {
+      continue;
+    }
+
+    let upperTeam = null;
+    let lowerTeam = null;
+    for (let offset = 1; offset <= ELO_SEED_RANK_RADIUS; offset += 1) {
+      if (!upperTeam) {
+        const candidate = teamsByRank.get(team.rank - offset);
+        if (candidate && ranksWithHistory.has(candidate.rank)) {
+          upperTeam = candidate;
+        }
+      }
+      if (!lowerTeam) {
+        const candidate = teamsByRank.get(team.rank + offset);
+        if (candidate && ranksWithHistory.has(candidate.rank)) {
+          lowerTeam = candidate;
+        }
+      }
+    }
+
+    if (upperTeam && lowerTeam) {
+      const share = (team.rank - upperTeam.rank) / (lowerTeam.rank - upperTeam.rank);
+      team.rating = Math.round(upperTeam.rating + (lowerTeam.rating - upperTeam.rating) * share);
+    } else {
+      team.rating = aggregateTeamRating(team.members);
+    }
+  }
+
   const seedModel = buildSeedModel(teams);
-  for (const row of teams) {
-    row.seed = seedModel.seedWithoutSelf(row.rating);
+  for (const team of teams) {
+    team.seed = seedModel.seedWithoutSelf(team.rating);
   }
 
-  for (const row of teams) {
-    row.performanceRating = seedModel.findRatingForSeed(row.rank);
-    // const middleRank = Math.sqrt(row.rank * row.seed);
-    const middleRank = Math.pow(row.rank, ELO_RANK_FACTOR) * Math.pow(row.seed, 1 - ELO_RANK_FACTOR);
-    row.neededRating = seedModel.findRatingForSeed(middleRank);
+  for (const team of teams) {
+    team.performanceRating = seedModel.findRatingForSeed(team.rank);
+    const middleRank = Math.sqrt(team.rank * team.seed);
+    team.neededRating = seedModel.findRatingForSeed(middleRank);
   }
 
-  const predictionStats = calculatePredictionStats();
+  const predictedTeams = [];
+
+  for (const team of teams) {
+    if (team.shouldPredict) {
+      predictedTeams.push({ ratedRank: predictedTeams.length + 1, rating: team.rating });
+    }
+  }
+
+  const ratedOrder = [...predictedTeams].sort((left, right) => right.rating - left.rating);
+  ratedOrder.forEach((team, index) => {
+    team.predictedRatedRank = index + 1;
+  });
+
+  var spearmanSum = 0;
+  for (const team of predictedTeams) {
+    const diff = team.predictedRatedRank - team.ratedRank;
+    spearmanSum += diff * diff;
+  }
+
+  const predictedOrder = [...teams].sort((left, right) => right.rating - left.rating);
+  var deviation = 0;
+  const predictionRankDifferences = [];
+  predictedOrder.forEach((team, index) => {
+    if (team.shouldPredict) {
+      team.predictedRank = index + 1;
+      const diff = team.rank - team.predictedRank;
+      predictionRankDifferences.push(diff);
+      deviation += diff * diff;
+    }
+  });
+
+  const predictionStats = {
+    predictionTeamCount: predictedTeams.length,
+    predictionRankDifferences,
+    predictionSpearman: 1 - (6 * spearmanSum) / (predictedTeams.length * (predictedTeams.length * predictedTeams.length - 1)),
+    predictionStddev: Math.sqrt(deviation / predictedTeams.length),
+  };
+
+  // ELO computation starts below:
 
   const output = [];
-  for (const row of teams) {
-    const neededRating = calculateMemberRating(row.neededRating, row.members.length);
-    const performanceRating = calculateMemberRating(row.performanceRating, row.members.length);
-    for (const member of row.members) {
+  for (const team of teams) {
+    const neededRating = calculateMemberRating(team.neededRating, team.members.length);
+    const performanceRating = calculateMemberRating(team.performanceRating, team.members.length);
+    for (const member of team.members) {
       output.push({
         id: member,
-        rank: row.rank,
+        rank: team.rank,
+        predictedRank: team.predictedRank,
+        seedRating: team.rating,
         rating: getRating(member),
         performanceRating,
         neededRating,
-        seed: row.seed,
+        seed: team.seed,
         delta: Math.trunc((neededRating - getRating(member)) * ELO_UPDATE_FACTOR),
       });
     }
@@ -247,13 +325,11 @@ function applyCodeforcesUpdate(input, playerStates) {
     }
   }
 
-  const sumDeltaFinal = output.reduce((acc, row) => acc + row.delta, 0);
-
   var firstTimeParticipantCount = 0;
   var firstTimeParticipantRatingSum = 0;
   var ratingSum = 0;
   for (const participant of output) {
-    if (playerStates.get(participant.id).history.length == 0) {
+    if (!hasContestHistory(participant.id)) {
       firstTimeParticipantCount++;
       firstTimeParticipantRatingSum += participant.rating + participant.delta;
     }
@@ -261,13 +337,14 @@ function applyCodeforcesUpdate(input, playerStates) {
   }
 
   const statistics = {
+    teamCount: teams.length,
+    participantCount: output.length,
     firstTimeParticipantCount,
     firstTimeParticipantRatingSum,
     ratingSum,
     adjustment1: inc1,
     adjustment2: inc2,
     topCount,
-    sumDeltaFinal,
     ...predictionStats,
   };
 

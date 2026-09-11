@@ -9,7 +9,7 @@
     return;
   }
 
-  const { colorizeRating, escapeHtml, formatDelta, updateUrl } = window.xcpcFrontendUtils;
+  const { unpackPlayerHistory, colorizeRating, escapeHtml, formatDelta, updateUrl } = window.xcpcFrontendUtils;
   const contestDisplayTitle = (contest, index) => {
     if (!contest) return `比赛 #${index}`;
     if (!contest.alias) return contest.title || `比赛 #${index}`;
@@ -29,6 +29,7 @@
   const hint = document.getElementById("contestHint");
   document.getElementById("subtitle").textContent = `共 ${data.contests.length.toLocaleString()} 场比赛`;
 
+  unpackPlayerHistory(data);
   const filterableContests = data.contests.map((contest, index) => ({
     contest,
     index,
@@ -99,57 +100,62 @@
     const participants = [];
     data.players.forEach((player) =>
       (player.history || []).forEach((event) => {
-        if (event[0] === index)
+        if (event.contestId === index)
           participants.push({
             player,
-            rank: event[1],
-            delta: event[2],
-            newRating: event[3],
-            performance: event[4],
-            seed: event[5],
+            ...event,
           });
       }),
     );
+    const d = contest.statistics || {};
     participants.sort((a, b) => (a.rank || Number.MAX_SAFE_INTEGER) - (b.rank || Number.MAX_SAFE_INTEGER));
     title.textContent = contest.title || `比赛 #${index}`;
-    meta.textContent = `${contest.startAt ? new Date(contest.startAt).toLocaleString("zh-CN") : "日期未知"} · ${participants.length} 名参赛选手`;
-    const d = contest.statistics || {};
+    meta.textContent = `${contest.startAt ? new Date(contest.startAt).toLocaleString("zh-CN") : "日期未知"} · ${d.participantCount} 名参赛选手 · ${d.teamCount} 支参赛队伍`;
     drawPredictionHistogram(d.predictionRankDifferences);
     statistics.innerHTML = [
-      ["首次参赛", d.firstTimeParticipantCount],
+      ["首次参赛选手", d.firstTimeParticipantCount],
       ["首次参赛平均 rating", d.firstTimeParticipantRatingSum / d.firstTimeParticipantCount],
       [
         "非首次参赛平均 rating",
-        (d.ratingSum - d.firstTimeParticipantRatingSum) / (participants.length - d.firstTimeParticipantCount),
+        (d.ratingSum - d.firstTimeParticipantRatingSum) / (d.participantCount - d.firstTimeParticipantCount),
       ],
-      ["平均 rating", d.ratingSum / participants.length],
-      ["Delta 合计", formatDelta(d.sumDeltaFinal)],
-      ["Delta 调整", d.adjustment1],
-      // ["Top 调整", Number.isFinite(d.topCount) ? `${d.topCount}（${formatDelta(d.adjustment2)}）` : "-"],
+      ["平均 rating", d.ratingSum / d.participantCount],
+      ["delta 调整", d.adjustment1],
       ["预测队伍数", d.predictionTeamCount],
       ["预测相关系数", d.predictionSpearman ? d.predictionSpearman.toFixed(4) : "N/A"],
+      ["预测误差标准差", d.predictionStddev],
     ]
       .map(
         ([label, value]) =>
           `<div class="statistic-card"><span>${label}</span><strong>${Number.isFinite(value) ? value.toLocaleString() : (value ?? "-")}</strong></div>`,
       )
       .join("");
-    body.innerHTML = participants
-      .map(({ player, rank, delta, newRating, performance, seed }) => {
-        const before = Number.isFinite(newRating) && Number.isFinite(delta) ? newRating - delta : null;
-        const deltaClass = delta > 0 ? "delta-positive" : delta < 0 ? "delta-negative" : "delta-neutral";
-        return `<tr>
+    var tableHTML = "";
+    participants.forEach((event, index) => {
+      const { player, rank, delta, newRating, performanceRating, seedRating, predictedRank } = event;
+      const before = newRating - delta;
+      const deltaClass = delta > 0 ? "delta-positive" : delta < 0 ? "delta-negative" : "delta-neutral";
+      const predictionDeltaClass = predictedRank
+        ? rank < predictedRank
+          ? "delta-positive"
+          : rank > predictedRank
+            ? "delta-negative"
+            : "delta-neutral"
+        : "";
+      const teamBorder = index != 0 && rank != participants[index - 1].rank ? 'class="team-border"' : "";
+      tableHTML += `<tr ${teamBorder}>
           <td class="mono">${rank}</td>
-          <td class="mono">${seed}</td>
+          <td class="mono ${predictionDeltaClass}">${predictedRank ? formatDelta(rank - predictedRank) : "N/A"}</td>
           <td><a href="./index.html?player=${encodeURIComponent(player.id)}" target="_blank" rel="noopener noreferrer">${escapeHtml(player.name || player.id)}</a></td>
           <td>${escapeHtml(player.organization || "")}</td>
+          <td class="mono">${colorizeRating(seedRating, seedRating)}</td>
           <td class="mono">${colorizeRating(before, before)}</td>
-          <td class="mono">${colorizeRating(performance, performance)}</td>
+          <td class="mono">${colorizeRating(performanceRating, performanceRating)}</td>
           <td class="mono ${deltaClass}">${formatDelta(delta)}</td>
           <td class="mono">${colorizeRating(newRating, newRating)}</td>
         </tr>`;
-      })
-      .join("");
+    });
+    body.innerHTML = tableHTML;
     hint.textContent = participants.length ? `按比赛名次排序，共 ${participants.length} 名选手。` : "暂无参赛记录。";
   }
 
@@ -179,9 +185,9 @@
         {
           x: differences,
           type: "histogram",
-          xbins: { size: 1 },
+          xbins: { size: Math.max(1, Math.floor(values.length / 100)) },
           marker: { color: accent, line: { color: accent, width: 1 } },
-          hovertemplate: "排名差 %{x}<br>人数 %{y}<extra></extra>",
+          hovertemplate: "排名差 %{x}<br>队数 %{y}<extra></extra>",
         },
       ],
       {
@@ -196,7 +202,7 @@
           zeroline: true,
           zerolinecolor: gridColor,
         },
-        yaxis: { title: "人数", color: textColor, gridcolor: gridColor, rangemode: "tozero" },
+        yaxis: { title: "队数", color: textColor, gridcolor: gridColor, rangemode: "tozero" },
         showlegend: false,
       },
       { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["select2d", "lasso2d", "autoScale2d"] },
