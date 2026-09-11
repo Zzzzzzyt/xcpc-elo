@@ -111,7 +111,13 @@
     participants.sort((a, b) => (a.rank || Number.MAX_SAFE_INTEGER) - (b.rank || Number.MAX_SAFE_INTEGER));
     title.textContent = contest.title || `比赛 #${index}`;
     meta.textContent = `${contest.startAt ? new Date(contest.startAt).toLocaleString("zh-CN") : "日期未知"} · ${d.participantCount} 名参赛选手 · ${d.teamCount} 支参赛队伍`;
-    drawPredictionHistogram(d.predictionRankDifferences);
+    const predictionRankDifferences = [];
+    participants.forEach((event, index) => {
+      if ((index == 0 || event.rank != participants[index - 1].rank) && event.predictedRank) {
+        predictionRankDifferences.push(event.rank - event.predictedRank);
+      }
+    });
+    drawPredictionHistogram(predictionRankDifferences);
     statistics.innerHTML = [
       ["首次参赛选手", d.firstTimeParticipantCount],
       ["首次参赛平均 rating", d.firstTimeParticipantRatingSum / d.firstTimeParticipantCount],

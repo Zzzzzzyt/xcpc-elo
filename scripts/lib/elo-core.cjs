@@ -267,19 +267,16 @@ function applyCodeforcesUpdate(input, playerStates) {
 
   const predictedOrder = [...teams].sort((left, right) => right.rating - left.rating);
   var deviation = 0;
-  const predictionRankDifferences = [];
   predictedOrder.forEach((team, index) => {
     if (team.shouldPredict) {
       team.predictedRank = index + 1;
       const diff = team.rank - team.predictedRank;
-      predictionRankDifferences.push(diff);
       deviation += diff * diff;
     }
   });
 
   const predictionStats = {
     predictionTeamCount: predictedTeams.length,
-    predictionRankDifferences,
     predictionSpearman: 1 - (6 * spearmanSum) / (predictedTeams.length * (predictedTeams.length * predictedTeams.length - 1)),
     predictionStddev: Math.sqrt(deviation / predictedTeams.length),
   };
