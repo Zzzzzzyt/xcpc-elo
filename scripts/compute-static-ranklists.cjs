@@ -104,7 +104,7 @@ async function computeAllStaticRanklists(collectionDir, outputDir) {
 
   for (const entry of files) {
     const srcFilePath = path.join(collectionDir, entry.relativeFilePath);
-    const outFilePath = path.join(outputDir, `static-ranklists/${entry.uniqueKey}.static.srk.json`);
+    const outFilePath = path.join(outputDir, `static-ranklists/${entry.uniqueKey}.json`);
 
     try {
       const ranklist = normalizeRanklistTeamMembers(readJson(srcFilePath));
@@ -199,6 +199,18 @@ async function computeAllStaticRanklists(collectionDir, outputDir) {
         });
       }
 
+      if (filteredRanklist.contributers !== undefined) delete filteredRanklist.contributers;
+      if (filteredRanklist.series !== undefined) delete filteredRanklist.series;
+      if (filteredRanklist.sorter !== undefined) delete filteredRanklist.sorter;
+      if (filteredRanklist.markers !== undefined) delete filteredRanklist.markers;
+      if (filteredRanklist.problems !== undefined) delete filteredRanklist.problems;
+
+      filteredRanklist.rows.forEach((row) => {
+        if (row.score !== undefined) delete row.score;
+        if (row.statuses !== undefined) delete row.statuses;
+        if (row.rankValues !== undefined) delete row.rankValues;
+      });
+
       writeJson(outFilePath, filteredRanklist);
       generatedSourcePaths[path.basename(outFilePath)] = entry.relativeFilePath.replace(/\\/g, "/");
       generatedCount += 1;
@@ -230,7 +242,7 @@ async function computeAllStaticRanklists(collectionDir, outputDir) {
   };
 
   writeJson(path.join(outputDir, "_static-ranklists-summary.json"), summary);
-  writeJson(path.join(outputDir, "_source-map.json"), generatedSourcePaths);
+  writeJson(path.join(outputDir, "source-map.json"), generatedSourcePaths);
   writeJson(path.join(outputDir, "_invalid-teammates.json"), invalidNameItems);
   return summary;
 }

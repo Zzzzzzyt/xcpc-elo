@@ -395,38 +395,8 @@ function shouldSkipContest(entry, ranklist) {
   return { skip: false };
 }
 
-/**
- * Recursively finds generated `.static.srk.json` files.
- *
- * @param {string} rootDir Directory to scan.
- * @returns {string[]} Absolute paths of static ranklist files.
- */
-function collectStaticRanklistFiles(rootDir) {
-  const files = [];
-
-  /**
-   * Recurses through a directory.
-   *
-   * @param {string} dir Directory to inspect.
-   */
-  function walk(dir) {
-    const children = fs.readdirSync(dir, { withFileTypes: true });
-    for (const child of children) {
-      const fullPath = path.join(dir, child.name);
-      if (child.isDirectory()) {
-        walk(fullPath);
-      } else if (child.isFile() && child.name.endsWith(".static.srk.json")) {
-        files.push(fullPath);
-      }
-    }
-  }
-  walk(rootDir);
-  return files;
-}
-
 module.exports = {
   assessParticipantNames,
-  collectStaticRanklistFiles,
   ensureDir,
   normalize,
   normalizeOrganizationName,

@@ -1,11 +1,9 @@
 /**
  * Computes teammate Elo histories from static ranklists.
  */
-const fs = require("fs");
 const path = require("path");
 const { applyCodeforcesUpdate, ELO_INITIAL_RATING, ELO_SCALE, ELO_UPDATE_FACTOR } = require("./lib/elo-core.cjs");
 const {
-  collectStaticRanklistFiles,
   normalize,
   readJson,
   resolveText,
@@ -173,9 +171,9 @@ function buildContestParticipants(ranklist, contestKey, teammateIndex, unresolve
 function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRating) {
   const teammateMap = readJson(teammateMapFile);
   const teammateIndex = buildTeammateIndex(teammateMap);
-  const staticFiles = collectStaticRanklistFiles(staticRootDir);
-  const sourceMapFile = path.join(path.dirname(outputFile), "_source-map.json");
-  const sourceMap = fs.existsSync(sourceMapFile) ? readJson(sourceMapFile) : {};
+  const sourceMapFile = path.join(path.dirname(outputFile), "source-map.json");
+  const sourceMap = readJson(sourceMapFile);
+  const staticFiles = Object.keys(sourceMap).map((fileName) => path.join(staticRootDir, fileName));
 
   const unresolvedEntries = [];
   const skippedInvalidContests = [];

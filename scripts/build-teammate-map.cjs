@@ -3,7 +3,6 @@
  */
 const path = require("path");
 const {
-  collectStaticRanklistFiles,
   normalize,
   readJson,
   resolveText,
@@ -20,7 +19,9 @@ const {
  * @returns {object} Built teammate map data.
  */
 function buildTeammateOrganizationMap(staticRootDir, outputFile) {
-  const ranklistFiles = collectStaticRanklistFiles(staticRootDir);
+  const sourceMapFile = path.join(path.dirname(outputFile), "source-map.json");
+  const sourceMap = readJson(sourceMapFile);
+  const ranklistFiles = Object.keys(sourceMap).map((fileName) => path.join(staticRootDir, fileName));
   const pairMap = new Map();
 
   for (const filePath of ranklistFiles) {

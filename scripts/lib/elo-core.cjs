@@ -182,7 +182,7 @@ function applyCodeforcesUpdate(input, playerStates) {
   }
 
   /**
-   * Determine if the rank of a team is possible to predict
+   * Determine if the rank of a team is possible to predict.
    *
    * @param {object} team Team to determine
    * @returns {boolean} True if the team is eligible for prediction

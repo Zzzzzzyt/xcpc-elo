@@ -11,11 +11,11 @@ const rootDir = path.resolve(__dirname, "..");
 const staticRoot = path.join(rootDir, "out", "static-ranklists");
 const teammateMap = path.join(rootDir, "out", "teammate-map.json");
 const experimentDir = fs.mkdtempSync(path.join(os.tmpdir(), "xcpc-elo-experiment-"));
-const sourceMap = path.join(rootDir, "out", "_source-map.json");
-if (fs.existsSync(sourceMap)) fs.copyFileSync(sourceMap, path.join(experimentDir, "_source-map.json"));
+const sourceMap = path.join(rootDir, "out", "source-map.json");
+if (fs.existsSync(sourceMap)) fs.copyFileSync(sourceMap, path.join(experimentDir, "source-map.json"));
 const updateFactors = [0.65];
 const scales = [400];
-const searchOffsets = [0.5, 1, 1.5];
+const searchOffsets = [0.5];
 const adjustTops = [false];
 const seedRankRadii = [2];
 
