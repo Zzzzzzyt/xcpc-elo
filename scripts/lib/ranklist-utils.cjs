@@ -231,6 +231,9 @@ function normalizeRowTeamMembers(row) {
     if (!raw || isSpecialMemberName(raw)) {
       continue;
     }
+    if (normalized.some((member) => member.name === raw)) {
+      continue;
+    }
     normalized.push({ name: raw });
   }
 
