@@ -2,7 +2,13 @@
  * Computes teammate Elo histories from static ranklists.
  */
 const path = require("path");
-const { applyCodeforcesUpdate, ELO_INITIAL_RATING, ELO_SCALE, ELO_UPDATE_FACTOR } = require("./lib/elo-core.cjs");
+const {
+  applyCodeforcesUpdate,
+  ELO_INITIAL_RATING,
+  ELO_SCALE,
+  ELO_TEAM_RATING_AGGREGATION,
+  ELO_UPDATE_FACTOR,
+} = require("./lib/elo-core.cjs");
 const {
   normalize,
   readJson,
@@ -288,6 +294,7 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
       initialRating,
       eloScale: ELO_SCALE,
       eloUpdateFactor: ELO_UPDATE_FACTOR,
+      teamRatingAggregation: ELO_TEAM_RATING_AGGREGATION,
     },
     totals: {
       contests: contests.length,

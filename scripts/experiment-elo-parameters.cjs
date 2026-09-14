@@ -10,16 +10,16 @@ const { spawnSync } = require("child_process");
 const rootDir = path.resolve(__dirname, "..");
 const staticRoot = path.join(rootDir, "out", "static-ranklists");
 const teammateMap = path.join(rootDir, "out", "teammate-map.json");
-const experimentDir = fs.mkdtempSync(path.join(os.tmpdir(), "xcpc-elo-experiment-"));
+const experimentDir = "out/experiment-elo-parameters";
+if (!fs.existsSync(experimentDir)) fs.mkdirSync(experimentDir, { recursive: true });
 const sourceMap = path.join(rootDir, "out", "source-map.json");
 if (fs.existsSync(sourceMap)) fs.copyFileSync(sourceMap, path.join(experimentDir, "source-map.json"));
 const updateFactors = [0.65];
 const scales = [400];
 const searchOffsets = [0.5];
-const adjustTops = [false];
 const seedRankRadii = [2];
 
-function aggregate(output) {
+function aggregateStatistics(output) {
   const values = (output.contests || []).filter((contest) => {
     const year = contest.startAt ? new Date(contest.startAt).getFullYear() : 0;
     return (
@@ -42,41 +42,35 @@ const results = [];
 for (const scale of scales) {
   for (const updateFactor of updateFactors) {
     for (const searchOffset of searchOffsets) {
-      for (const adjustTop of adjustTops) {
-        for (const seedRankRadius of seedRankRadii) {
-          console.log("current:", scale, updateFactor, searchOffset, adjustTop, seedRankRadius);
-          const outputFile = path.join(experimentDir, `tmp-elo.json`);
-          const result = spawnSync(
-            process.execPath,
-            [path.join(rootDir, "scripts", "compute-teammate-elo.cjs"), staticRoot, teammateMap, outputFile],
-            {
-              cwd: rootDir,
-              env: {
-                ...process.env,
-                XCPC_ELO_SCALE: `${scale}`,
-                XCPC_ELO_UPDATE_FACTOR: `${updateFactor}`,
-                XCPC_ELO_SEARCH_OFFSET: `${searchOffset}`,
-                XCPC_ELO_ADJUST_TOP_DELTA: `${adjustTop}`,
-                XCPC_ELO_SEED_RANK_RADIUS: `${seedRankRadius}`,
-              },
-              encoding: "utf8",
+      for (const seedRankRadius of seedRankRadii) {
+        console.log("current:", scale, updateFactor, searchOffset, seedRankRadius);
+        const outputFile = path.join(experimentDir, `tmp-elo.json`);
+        const result = spawnSync(
+          process.execPath,
+          [path.join(rootDir, "scripts", "compute-teammate-elo.cjs"), staticRoot, teammateMap, outputFile],
+          {
+            cwd: rootDir,
+            env: {
+              ...process.env,
+              XCPC_ELO_SCALE: `${scale}`,
+              XCPC_ELO_UPDATE_FACTOR: `${updateFactor}`,
+              XCPC_ELO_SEARCH_OFFSET: `${searchOffset}`,
+              XCPC_ELO_SEED_RANK_RADIUS: `${seedRankRadius}`,
             },
+            encoding: "utf8",
+          },
+        );
+        if (result.status !== 0)
+          throw new Error(
+            result.stderr || result.stdout || `experiment failed: ${scale}/${updateFactor}/${searchOffset}/${seedRankRadius}`,
           );
-          if (result.status !== 0)
-            throw new Error(
-              result.stderr ||
-                result.stdout ||
-                `experiment failed: ${scale}/${updateFactor}/${searchOffset}/${adjustTop}/${seedRankRadius}`,
-            );
-          results.push({
-            scale,
-            updateFactor,
-            searchOffset,
-            adjustTop,
-            seedRankRadius,
-            ...aggregate(JSON.parse(fs.readFileSync(outputFile, "utf8"))),
-          });
-        }
+        results.push({
+          scale,
+          updateFactor,
+          searchOffset,
+          seedRankRadius,
+          ...aggregateStatistics(JSON.parse(fs.readFileSync(outputFile, "utf8"))),
+        });
       }
     }
   }

@@ -1,20 +1,108 @@
 /**
  * Codeforces-style Elo rating calculations for ranked contest participants.
  */
-const MIN_RATING_FOR_SEARCH = -20000;
-const MAX_RATING_FOR_SEARCH = 20000;
+
+/**
+ * Sums the base-10 power of every rating.
+ *
+ * @param {number[]} ratings Ratings to convert.
+ * @returns {number} Summed rating power.
+ */
+function sumRatingPower(ratings) {
+  var total = 0;
+  for (const rating of ratings) {
+    total += Math.pow(10, rating / ELO_SCALE);
+  }
+  return total;
+}
+
+/**
+ * Team rating aggregations.
+ *
+ * Every aggregation is a function of the ratings of the members with contest
+ * history and the number of members without it. It returns the team rating, or
+ * null when the team cannot be rated from those members.
+ */
+const TEAM_RATING_AGGREGATIONS = {
+  "log-power-sum": (ratedRatings, unratedCount) =>
+    ratedRatings.length === 0
+      ? ELO_INITIAL_RATING + Math.log10(unratedCount) * ELO_SCALE
+      : Math.log10(sumRatingPower(ratedRatings)) * ELO_SCALE,
+  "log-power-mean": (ratedRatings, unratedCount) =>
+    ratedRatings.length === 0 ? ELO_INITIAL_RATING : Math.log10(sumRatingPower(ratedRatings) / ratedRatings.length) * ELO_SCALE,
+  mean: (ratedRatings, unratedCount) =>
+    ratedRatings.length === 0
+      ? ELO_INITIAL_RATING
+      : ratedRatings.reduce((sum, rating) => sum + rating, 0) / ratedRatings.length,
+  max: (ratedRatings, unratedCount) => (ratedRatings.length === 0 ? ELO_INITIAL_RATING : Math.max(...ratedRatings)),
+};
+/**
+ * Member rating from team rating aggregations.
+ */
+const MEMBER_RATING_AGGREGATIONS = {
+  "log-power-sum": (teamRating, memberCount) => teamRating - ELO_SCALE * Math.log10(memberCount),
+  "log-power-mean": (teamRating, memberCount) => teamRating,
+  mean: (teamRating, memberCount) => teamRating,
+  max: (teamRating, memberCount) => teamRating,
+};
+
+/**
+ * Reads a numeric environment variable or returns a fallback value.
+ * @param {string} name Environment variable name.
+ * @param {number} fallback Fallback value when the variable is not set or invalid.
+ * @returns {number} Numeric value of the environment variable or fallback.
+ */
 function envNumber(name, fallback) {
   const value = Number(process.env[name]);
   return Number.isFinite(value) ? value : fallback;
 }
+
+/**
+ * Reads and validates a team rating aggregation selected by an environment variable.
+ *
+ * @param {string} name Environment variable name.
+ * @param {string} fallback Aggregation used when the variable is not set.
+ * @returns {string} Selected aggregation name.
+ */
+function envAggregation(name, fallback) {
+  const value = process.env[name] || fallback;
+  if (!Object.prototype.hasOwnProperty.call(TEAM_RATING_AGGREGATIONS, value)) {
+    throw new Error(
+      `Unknown team rating aggregation "${value}" for ${name}; expected one of ${Object.keys(TEAM_RATING_AGGREGATIONS).join(
+        ", ",
+      )}.`,
+    );
+  }
+  return value;
+}
+
+/**
+ * Clamps a value to a given range.
+ * @param {number} value Value to clamp.
+ * @param {number} min Minimum value.
+ * @param {number} max Maximum value.
+ * @returns {number} Clamped value.
+ */
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+const MIN_RATING_FOR_SEARCH = -20000;
+const MAX_RATING_FOR_SEARCH = 20000;
 
 const ELO_SCALE = envNumber("XCPC_ELO_SCALE", 400);
 const ELO_INITIAL_RATING = envNumber("XCPC_ELO_INITIAL_RATING", 1400);
 const ELO_UPDATE_FACTOR = envNumber("XCPC_ELO_UPDATE_FACTOR", 0.65);
 const ELO_SEARCH_OFFSET = envNumber("XCPC_ELO_SEARCH_OFFSET", 0.5);
 const ELO_SEED_RANK_RADIUS = envNumber("XCPC_ELO_SEED_RANK_RADIUS", 2);
-const ELO_ADJUST_TOP_DELTA =
-  process.env.XCPC_ELO_ADJUST_TOP_DELTA === undefined ? false : process.env.XCPC_ELO_ADJUST_TOP_DELTA !== "false";
+const ELO_MIN_ADJUST_DELTA = envNumber("XCPC_ELO_MIN_ADJUST_DELTA", Number.MIN_SAFE_INTEGER);
+const ELO_MAX_ADJUST_DELTA = envNumber("XCPC_ELO_MAX_ADJUST_DELTA", Number.MAX_SAFE_INTEGER);
+const ELO_MIN_ADJUST_TOP_DELTA = envNumber("XCPC_ELO_MIN_ADJUST_TOP_DELTA", 0);
+const ELO_MAX_ADJUST_TOP_DELTA = envNumber("XCPC_ELO_MAX_ADJUST_TOP_DELTA", 0);
+
+// Aggregation driving the Elo computation: the seed model, and through it the
+// performance and needed rating of every team.
+const ELO_TEAM_RATING_AGGREGATION = envAggregation("XCPC_ELO_TEAM_RATING_AGGREGATION", "log-power-sum");
 
 /**
  * Builds rating/seed lookup helpers for a participant population.
@@ -140,45 +228,31 @@ function applyCodeforcesUpdate(input, playerStates) {
   }
 
   /**
-   * Aggregates the given teammate ratings into a team rating.
+   * Reads the current ratings of the given members.
    *
-   * @param {string[]} members Teammate IDs to aggregate.
-   * @returns {number} Aggregate team rating.
+   * @param {string[]} members Teammate IDs.
+   * @returns {number[]} Current ratings.
    */
-  function aggregateTeamRating(members) {
-    var total = 0;
-    for (const member of members) {
-      total += Math.pow(10, getRating(member) / ELO_SCALE);
-    }
-    return Math.round(Math.log10(total) * ELO_SCALE);
+  function getRatings(members) {
+    return members.map((member) => getRating(member));
   }
 
   /**
-   * Aggregates teammate ratings into a team rating.
+   * Aggregates a team into a team rating with the given aggregation.
+   *
+   * The aggregation drives the Elo computation only; the seeded rank prediction
+   * is derived from the same rating and exists for display purposes.
    *
    * Teammates without contest history only carry their initial rating, so they are
-   * excluded to keep the seed driven by members that have actually competed.
+   * passed to the aggregation as a count instead of as ratings.
    *
    * @param {object} team Team row containing member IDs.
-   * @returns {number|null} Aggregate team rating, or null when no member has history.
+   * @param {Function} aggregation Team rating aggregation.
+   * @returns {number} Team rating.
    */
-  function calculateTeamRating(team) {
+  function calculateTeamRating(team, aggregation) {
     const ratedMembers = team.members.filter(hasContestHistory);
-    if (ratedMembers.length === 0) {
-      return null;
-    }
-    return aggregateTeamRating(ratedMembers);
-  }
-
-  /**
-   * Converts a team-level rating to an individual member rating.
-   *
-   * @param {number} rating Team rating.
-   * @param {number} memberCount Team size.
-   * @returns {number} Member rating.
-   */
-  function calculateMemberRating(rating, memberCount) {
-    return Math.round(rating - ELO_SCALE * Math.log10(memberCount));
+    return aggregation(getRatings(ratedMembers), team.members.length - ratedMembers.length);
   }
 
   /**
@@ -191,10 +265,14 @@ function applyCodeforcesUpdate(input, playerStates) {
     return team.members.some((member) => playerStates.get(member).history.length > 0);
   }
 
+  const aggregation = TEAM_RATING_AGGREGATIONS[ELO_TEAM_RATING_AGGREGATION];
+  const calculateMemberRating = MEMBER_RATING_AGGREGATIONS[ELO_TEAM_RATING_AGGREGATION];
+
   const teams = input.map((team) => ({
     rank: team.rank,
     members: team.members,
-    rating: calculateTeamRating(team),
+    rating: calculateTeamRating(team, aggregation),
+    hasHistory: team.members.some((member) => hasContestHistory(member)),
     shouldPredict: predictionPossible(team),
     predictedRank: null,
     seed: 1,
@@ -204,9 +282,12 @@ function applyCodeforcesUpdate(input, playerStates) {
   }));
 
   const teamsByRank = new Map(teams.map((team) => [team.rank, team]));
-  const ranksWithHistory = new Set(teams.filter((team) => team.rating !== null).map((team) => team.rank));
+
+  // Teams without contest history are anchored to the closest rated teams around
+  // their rank; without an anchor on both sides every member joins the aggregate
+  // at its initial rating.
   for (const team of teams) {
-    if (team.rating !== null) {
+    if (team.hasHistory) {
       continue;
     }
 
@@ -215,13 +296,13 @@ function applyCodeforcesUpdate(input, playerStates) {
     for (let offset = 1; offset <= ELO_SEED_RANK_RADIUS; offset += 1) {
       if (!upperTeam) {
         const candidate = teamsByRank.get(team.rank - offset);
-        if (candidate && ranksWithHistory.has(candidate.rank)) {
+        if (candidate && candidate.hasHistory) {
           upperTeam = candidate;
         }
       }
       if (!lowerTeam) {
         const candidate = teamsByRank.get(team.rank + offset);
-        if (candidate && ranksWithHistory.has(candidate.rank)) {
+        if (candidate && candidate.hasHistory) {
           lowerTeam = candidate;
         }
       }
@@ -231,8 +312,12 @@ function applyCodeforcesUpdate(input, playerStates) {
       const share = (team.rank - upperTeam.rank) / (lowerTeam.rank - upperTeam.rank);
       team.rating = Math.round(upperTeam.rating + (lowerTeam.rating - upperTeam.rating) * share);
     } else {
-      team.rating = aggregateTeamRating(team.members);
+      // team.rating = aggregation(getRatings(team.members), 0);
     }
+  }
+
+  for (const team of teams) {
+    team.rating = Math.round(team.rating);
   }
 
   const seedModel = buildSeedModel(teams);
@@ -288,16 +373,17 @@ function applyCodeforcesUpdate(input, playerStates) {
     const neededRating = calculateMemberRating(team.neededRating, team.members.length);
     const performanceRating = calculateMemberRating(team.performanceRating, team.members.length);
     for (const member of team.members) {
+      const oldRating = getRating(member);
       output.push({
         id: member,
         rank: team.rank,
         predictedRank: team.predictedRank,
         seedRating: team.rating,
-        rating: getRating(member),
-        performanceRating,
-        neededRating,
+        rating: oldRating,
+        performanceRating: Math.round(performanceRating),
+        neededRating: Math.round(neededRating),
         seed: team.seed,
-        delta: Math.trunc((neededRating - getRating(member)) * ELO_UPDATE_FACTOR),
+        delta: Math.trunc((neededRating - oldRating) * ELO_UPDATE_FACTOR),
       });
     }
   }
@@ -305,21 +391,19 @@ function applyCodeforcesUpdate(input, playerStates) {
   output.sort((a, b) => b.rating - a.rating || a.rank - b.rank);
 
   const sumDelta = output.reduce((acc, row) => acc + row.delta, 0);
-  const inc1 = Math.trunc(-sumDelta / output.length) - 1;
+  const inc1 = clamp(Math.trunc(-sumDelta / output.length) - 1, ELO_MIN_ADJUST_DELTA, ELO_MAX_ADJUST_DELTA);
   for (const row of output) {
     row.delta += inc1;
   }
 
   let inc2 = 0;
   let topCount = 0;
-  if (ELO_ADJUST_TOP_DELTA) {
-    topCount = Math.min(output.length, Math.round(4 * Math.sqrt(output.length)));
-    const sumTop = output.slice(0, topCount).reduce((acc, row) => acc + row.delta, 0);
-    inc2 = Math.trunc(-sumTop / topCount);
-    inc2 = Math.max(-10, Math.min(0, inc2));
-    for (const row of output) {
-      row.delta += inc2;
-    }
+  topCount = Math.min(output.length, Math.round(4 * Math.sqrt(output.length)));
+  const sumTop = output.slice(0, topCount).reduce((acc, row) => acc + row.delta, 0);
+  inc2 = Math.trunc(-sumTop / topCount);
+  inc2 = clamp(inc2, ELO_MIN_ADJUST_TOP_DELTA, ELO_MAX_ADJUST_TOP_DELTA);
+  for (const row of output) {
+    row.delta += inc2;
   }
 
   var firstTimeParticipantCount = 0;
@@ -352,5 +436,6 @@ module.exports = {
   applyCodeforcesUpdate,
   ELO_INITIAL_RATING,
   ELO_SCALE,
+  ELO_TEAM_RATING_AGGREGATION,
   ELO_UPDATE_FACTOR,
 };
