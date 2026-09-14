@@ -9,7 +9,8 @@
     return;
   }
 
-  const { unpackPlayerHistory, colorizeRating, escapeHtml, formatDelta, updateUrl } = window.xcpcFrontendUtils;
+  const { unpackPlayerHistory, colorizeRating, deltaClasses, escapeHtml, formatDelta, updateUrl } =
+    window.xcpcFrontendUtils;
   const contestDisplayTitle = (contest, index) => {
     if (!contest) return `比赛 #${index}`;
     if (!contest.alias) return contest.title || `比赛 #${index}`;
@@ -110,7 +111,8 @@
     const d = contest.statistics || {};
     participants.sort((a, b) => (a.rank || Number.MAX_SAFE_INTEGER) - (b.rank || Number.MAX_SAFE_INTEGER));
     title.textContent = contest.title || `比赛 #${index}`;
-    meta.textContent = `${contest.startAt ? new Date(contest.startAt).toLocaleString("zh-CN") : "日期未知"} · ${d.participantCount} 名参赛选手 · ${d.teamCount} 支参赛队伍`;
+    const unratedNote = contest.unrated ? " · unrated（不计入 rating）" : "";
+    meta.textContent = `${contest.startAt ? new Date(contest.startAt).toLocaleString("zh-CN") : "日期未知"} · ${d.participantCount} 名参赛选手 · ${d.teamCount} 支参赛队伍${unratedNote}`;
     const predictionRankDifferences = [];
     participants.forEach((event, index) => {
       if ((index == 0 || event.rank != participants[index - 1].rank) && event.predictedRank) {
@@ -138,9 +140,9 @@
       .join("");
     var tableHTML = "";
     participants.forEach((event, index) => {
-      const { player, rank, delta, newRating, performanceRating, seedRating, predictedRank } = event;
-      const before = newRating - delta;
-      const deltaClass = delta > 0 ? "delta-positive" : delta < 0 ? "delta-negative" : "delta-neutral";
+      const { player, rank, delta, newRating, performanceRating, seedRating, predictedRank, unrated } = event;
+      const before = unrated ? null : newRating - delta;
+      const deltaClass = deltaClasses(delta, unrated);
       const predictionDeltaClass = predictedRank
         ? rank < predictedRank
           ? "delta-positive"
@@ -155,10 +157,10 @@
           <td><a href="./index.html?player=${encodeURIComponent(player.id)}" target="_blank" rel="noopener noreferrer">${escapeHtml(player.name || player.id)}</a></td>
           <td>${escapeHtml(player.organization || "")}</td>
           <td class="mono">${colorizeRating(seedRating, seedRating)}</td>
-          <td class="mono">${colorizeRating(before, before)}</td>
+          <td class="mono">${unrated ? "—" : colorizeRating(before, before)}</td>
           <td class="mono">${colorizeRating(performanceRating, performanceRating)}</td>
-          <td class="mono ${deltaClass}">${formatDelta(delta)}</td>
-          <td class="mono">${colorizeRating(newRating, newRating)}</td>
+          <td class="mono ${deltaClass}"${unrated ? ' title="unrated（不计入 rating）"' : ""}>${formatDelta(delta)}</td>
+          <td class="mono">${unrated ? "—" : colorizeRating(newRating, newRating)}</td>
         </tr>`;
     });
     body.innerHTML = tableHTML;

@@ -13,8 +13,12 @@ const EXCLUDED_CONTEST_PATTERNS = [
   /university/i,
   /rejudge/i,
   /ucup/i,
-  /ahcpc2026preliminary/i,
 ];
+
+// Contests that are processed and displayed like any other, but whose rating
+// changes do not count: the Elo step stores a null rating for them and the
+// frontend strikes through their deltas.
+const UNRATED_CONTEST_PATTERNS = [/ahcpc2026preliminary/i, /icpc2025srni/i, /icpc2024srni/i];
 const ORGANIZATION_NAME_FIXES = new Map([
   ["上海理エ大学", "上海理工大学"],
   ["哈尔滨エ业大学", "哈尔滨工业大学"],
@@ -231,9 +235,6 @@ function normalizeRowTeamMembers(row) {
     if (!raw || isSpecialMemberName(raw)) {
       continue;
     }
-    if (normalized.some((member) => member.name === raw)) {
-      continue;
-    }
     normalized.push({ name: raw });
   }
 
@@ -398,9 +399,21 @@ function shouldSkipContest(entry, ranklist) {
   return { skip: false };
 }
 
+/**
+ * Returns whether a contest is unrated.
+ *
+ * @param {...string} parts Contest identifiers, such as key, file path, and title.
+ * @returns {boolean} True when the contest is unrated.
+ */
+function isUnratedContest(...parts) {
+  const haystack = parts.filter(Boolean).join(" ");
+  return UNRATED_CONTEST_PATTERNS.some((pattern) => pattern.test(haystack));
+}
+
 module.exports = {
   assessParticipantNames,
   ensureDir,
+  isUnratedContest,
   normalize,
   normalizeOrganizationName,
   normalizeForMatch,

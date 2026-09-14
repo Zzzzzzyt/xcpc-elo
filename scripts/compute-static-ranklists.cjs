@@ -11,6 +11,7 @@ const {
   readJson,
   resolveText,
   shouldSkipContest,
+  teammatePairKey,
   writeJson,
 } = require("./lib/ranklist-utils.cjs");
 const crypto = require("crypto");
@@ -52,37 +53,89 @@ function resolveContestUserHash(ranklist) {
 }
 
 /**
- * Removes rows with no submissions while preserving rank values as supplied.
+ * Removes teams without submissions and repeated teammate-organization pairs
+ * from a static ranklist, in one pass over the supplied ranks.
  *
- * @param {object} staticRanklist Static ranklist to filter.
- * @returns {{ranklist: object, removedRows: object[]}} Filtered ranklist and removals.
+ * A teammate pair is kept only in the highest ranked team listing it, that is
+ * the first submitted row; later occurrences are dropped from their teams.
+ * Teams that lose every member stay as empty teams so that the remaining rows
+ * keep their positions. Ranks in the returned items are the original ranks of
+ * the ranklist, since rank values depend on contest-specific rules and cannot
+ * be recalculated after filtering.
+ *
+ * @param {object} staticRanklist Static ranklist to clean in place.
+ * @returns {{ranklist: object, removedRows: object[], removedTeammates: object[]}} Cleaned ranklist and removals.
  */
-function removeTeamsWithoutSubmissions(staticRanklist) {
+function removeInvalidTeamsAndTeammates(staticRanklist) {
   const rows = Array.isArray(staticRanklist && staticRanklist.rows) ? staticRanklist.rows : [];
+  const hasSubmission = (row) => Array.isArray(row && row.statuses) && row.statuses.some((problem) => problem.result !== null);
+  // Without any submission data no team is filtered, so every row takes part in
+  // the teammate cleanup; the ranklist itself is preserved further down.
+  const keepAllRows = !rows.some(hasSubmission) || rows.every(hasSubmission);
+
   const removedRows = [];
+  const removedTeammates = [];
   const keptRows = [];
+  const keptByPair = new Map();
 
   for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+    const rank = rowIndex + 1;
     const row = rows[rowIndex];
-    const hasSubmission = Array.isArray(row && row.statuses) && row.statuses.some((problem) => problem.result !== null);
-    if (hasSubmission) {
+    const rowHasSubmission = hasSubmission(row);
+    if (rowHasSubmission) {
       keptRows.push(row);
     } else {
-      removedRows.push({ rowIndex, rank: rowIndex + 1, row });
+      removedRows.push({ rowIndex, rank, row });
     }
+
+    // A dropped team cannot keep a teammate of its own.
+    if (!rowHasSubmission && !keepAllRows) {
+      continue;
+    }
+
+    const user = row && row.user ? row.user : {};
+    const organization = normalize(resolveText(user.organization));
+    const teamMembers = Array.isArray(user.teamMembers) ? user.teamMembers : [];
+    if (!organization || teamMembers.length === 0) {
+      continue;
+    }
+
+    const keptMembers = [];
+    for (const member of teamMembers) {
+      const name = normalize(resolveText(member && member.name));
+      const pairKey = teammatePairKey(organization, name);
+      const kept = keptByPair.get(pairKey);
+      if (kept === undefined) {
+        keptByPair.set(pairKey, { rank, team: normalize(resolveText(user.name)) });
+        keptMembers.push(member);
+        continue;
+      }
+
+      removedTeammates.push({
+        rowIndex,
+        rank,
+        organization,
+        team: normalize(resolveText(user.name)),
+        name,
+        keptRowIndex: kept.rank - 1,
+        keptRank: kept.rank,
+        keptTeam: kept.team,
+      });
+    }
+
+    user.teamMembers = keptMembers;
+    row.user = user;
   }
 
   // An entirely empty submission set usually indicates incomplete source data;
-  // preserve the original ranklist instead of deleting every team.
-  if (!removedRows.length || !keptRows.length) {
-    return { ranklist: staticRanklist, removedRows };
+  // preserve the original ranklist instead of deleting every team. Rows are
+  // kept as well when nothing had to be filtered.
+  if (!keptRows.length || !removedRows.length) {
+    return { ranklist: staticRanklist, removedRows, removedTeammates };
   }
 
-  // Rank values depend on contest-specific rules and cannot be safely
-  // recalculated here. They are not consumed by the Elo pipeline, so leave
-  // them untouched when filtering rows.
   staticRanklist.rows = keptRows;
-  return { ranklist: staticRanklist, removedRows };
+  return { ranklist: staticRanklist, removedRows, removedTeammates };
 }
 
 /**
@@ -99,6 +152,7 @@ async function computeAllStaticRanklists(collectionDir, outputDir) {
   const failures = [];
   const excludedItems = [];
   const invalidNameItems = [];
+  const duplicateTeammateItems = [];
   const generatedSourcePaths = {};
   const seenTitleEntries = new Map();
 
@@ -172,14 +226,14 @@ async function computeAllStaticRanklists(collectionDir, outputDir) {
         staticRanklist.contest = staticRanklist.contest || {};
         staticRanklist.contest.alias = entry.alias;
       }
-      const noSubmissionResult = removeTeamsWithoutSubmissions(staticRanklist);
-      if (noSubmissionResult.removedRows.length > 0) {
+      const cleanupResult = removeInvalidTeamsAndTeammates(staticRanklist);
+      if (cleanupResult.removedRows.length > 0) {
         invalidNameItems.push({
           uniqueKey: entry.uniqueKey,
           file: entry.relativeFilePath,
           reason: "no-submission",
-          detail: `removed ${noSubmissionResult.removedRows.length} team(s) without submissions`,
-          invalidRows: noSubmissionResult.removedRows.map((item) => ({
+          detail: `removed ${cleanupResult.removedRows.length} team(s) without submissions`,
+          invalidRows: cleanupResult.removedRows.map((item) => ({
             rowIndex: item.rowIndex,
             rank: item.rank,
             organization: normalize(resolveText(item.row && item.row.user && item.row.user.organization)),
@@ -188,7 +242,15 @@ async function computeAllStaticRanklists(collectionDir, outputDir) {
           })),
         });
       }
-      const filteredRanklist = noSubmissionResult.ranklist;
+      for (const item of cleanupResult.removedTeammates) {
+        duplicateTeammateItems.push({
+          uniqueKey: entry.uniqueKey,
+          file: entry.relativeFilePath,
+          ...item,
+        });
+      }
+
+      const filteredRanklist = cleanupResult.ranklist;
       const invalidCheck = assessParticipantNames(filteredRanklist);
       if (invalidCheck.invalidRows.length > 0) {
         invalidNameItems.push({
@@ -231,6 +293,7 @@ async function computeAllStaticRanklists(collectionDir, outputDir) {
     generated: generatedCount,
     excluded: excludedCount,
     generatedWithInvalidTeammates: invalidNameItems.length,
+    removedDuplicateTeammates: duplicateTeammateItems.length,
     failed: failures.length,
     excludedItems,
     invalidTeammateItems: invalidNameItems.map((item) => ({
@@ -238,12 +301,22 @@ async function computeAllStaticRanklists(collectionDir, outputDir) {
       file: item.file,
       detail: item.detail,
     })),
+    duplicateTeammateItems: duplicateTeammateItems.map((item) => ({
+      uniqueKey: item.uniqueKey,
+      file: item.file,
+      rank: item.rank,
+      keptRank: item.keptRank,
+      organization: item.organization,
+      team: item.team,
+      name: item.name,
+    })),
     failures,
   };
 
   writeJson(path.join(outputDir, "_static-ranklists-summary.json"), summary);
   writeJson(path.join(outputDir, "source-map.json"), generatedSourcePaths);
   writeJson(path.join(outputDir, "_invalid-teammates.json"), invalidNameItems);
+  writeJson(path.join(outputDir, "_duplicate-teammates.json"), duplicateTeammateItems);
   return summary;
 }
 

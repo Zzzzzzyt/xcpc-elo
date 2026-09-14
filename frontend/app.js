@@ -49,7 +49,8 @@
     return names[value] || value.toUpperCase();
   }
 
-  const { unpackPlayerHistory, colorizeRating, escapeHtml, formatDelta, updateUrl } = window.xcpcFrontendUtils;
+  const { unpackPlayerHistory, colorizeRating, deltaClasses, escapeHtml, formatDelta, updateUrl } =
+    window.xcpcFrontendUtils;
   unpackPlayerHistory(data);
   const contests = data.contests;
   const contestTimestampByIndex = contests.map((contest) => parseContestStartTimestamp(contest && contest.startAt));
@@ -58,8 +59,9 @@
   const eloUpdateFactor = data.config.eloUpdateFactor;
   const players = data.players.map((player) => {
     const maxRating = computeMaxRating(player);
-    const rating = player.history[player.history.length - 1].newRating;
-    const lastDelta = player.history[player.history.length - 1].delta;
+    const lastEvent = player.history[player.history.length - 1];
+    const rating = computeCurrentRating(player);
+    const lastDelta = lastEvent.delta;
     const lastCompetedTimestamp = computeLastCompetedTimestamp(player);
     const pinyinInitials = normalizeSearchToken(player.pinyinInitials);
     return {
@@ -67,6 +69,7 @@
       rating,
       maxRating,
       lastDelta,
+      lastUnrated: lastEvent.unrated,
       lastCompetedTimestamp,
       contests: player.history.length,
       searchText: normalizeSearchToken(`${player.name}-${player.organization}-${pinyinInitials}`),
@@ -203,7 +206,7 @@
     const visible = filtered.slice(0, 500);
     leaderboardBody.innerHTML = visible
       .map((player, visibleIndex) => {
-        const deltaClass = player.lastDelta > 0 ? "delta-positive" : player.lastDelta < 0 ? "delta-negative" : "delta-neutral";
+        const deltaClass = deltaClasses(player.lastDelta, player.lastUnrated);
         const selected = player.id === state.selectedId ? "active" : "";
         const shownRank = visibleIndex + 1;
         return `
@@ -213,7 +216,7 @@
             <td>${escapeHtml(player.organization || "")}</td>
             <td class="mono">${formatRatingColored(player.rating, player.rating)}</td>
             <td class="mono">${formatRatingColored(player.maxRating, formatTopRating(player.maxRating))}</td>
-            <td class="${deltaClass} mono">${formatDelta(player.lastDelta || 0)}</td>
+            <td class="${deltaClass} mono"${player.lastUnrated ? ' title="unrated（不计入 rating）"' : ""}>${formatDelta(player.lastDelta || 0)}</td>
             <td class="mono">${player.contests}</td>
           </tr>
         `;
@@ -291,6 +294,9 @@
   function buildRatingSequence(player) {
     const sequence = [{ label: "初始分", rating: initialRating, date: null }];
     for (const event of player.history) {
+      if (event.unrated) {
+        continue;
+      }
       const contest = event.contest;
       sequence.push({
         label: contestDisplayTitle(contest, event.contestId),
@@ -387,15 +393,16 @@
       .map((event) => {
         const contest = event.contest;
         const delta = event.delta;
-        const deltaClass = delta > 0 ? "delta-positive" : delta < 0 ? "delta-negative" : "delta-neutral";
+        const unrated = event.unrated;
+        const deltaClass = deltaClasses(delta, unrated);
         const dateText = contest && contest.startAt ? new Date(contest.startAt).toLocaleDateString("zh-CN") : "-";
         return `
           <tr>
             <td>${contest ? `<a href="./contests.html?contest=${encodeURIComponent(contest.key)}" target="_blank" rel="noopener noreferrer">${escapeHtml(contestDisplayTitle(contest, event.contestId))}</a>` : escapeHtml(`比赛 #${event.contestId}`)}</td>
             <td class="mono">${event.rank}</td>
             <td class="mono">${formatRatingColored(event.performanceRating, event.performanceRating)}</td>
-            <td class="${deltaClass} mono">${formatDelta(delta)}</td>
-            <td class="mono">${formatRatingColored(event.newRating, event.newRating)}</td>
+            <td class="${deltaClass} mono"${unrated ? ' title="unrated（不计入 rating）"' : ""}>${formatDelta(delta)}</td>
+            <td class="mono">${unrated ? "—" : formatRatingColored(event.newRating, event.newRating)}</td>
           </tr>
         `;
       })
@@ -405,6 +412,23 @@
       history.length > visible.length
         ? `仅显示最近 ${visible.length} / ${history.length} 场比赛。`
         : `历史比赛总数：${history.length}。`;
+  }
+
+  /**
+   * Finds a player's current rating, which is the last rated one because
+   * unrated contests store no rating.
+   *
+   * @param {object} player Player data.
+   * @returns {number} Latest rated rating, or the initial rating.
+   */
+  function computeCurrentRating(player) {
+    for (let index = player.history.length - 1; index >= 0; index -= 1) {
+      const event = player.history[index];
+      if (!event.unrated) {
+        return event.newRating;
+      }
+    }
+    return initialRating;
   }
 
   /**
@@ -420,11 +444,11 @@
     }
     let best = Number.NEGATIVE_INFINITY;
     for (const event of history) {
-      if (event.newRating > best) {
+      if (!event.unrated && event.newRating > best) {
         best = event.newRating;
       }
     }
-    return best;
+    return Number.isFinite(best) ? best : initialRating;
   }
 
   /**

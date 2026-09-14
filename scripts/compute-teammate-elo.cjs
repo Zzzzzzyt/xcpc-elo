@@ -10,6 +10,7 @@ const {
   ELO_UPDATE_FACTOR,
 } = require("./lib/elo-core.cjs");
 const {
+  isUnratedContest,
   normalize,
   readJson,
   resolveText,
@@ -191,15 +192,19 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
     const contest = ranklist && ranklist.contest ? ranklist.contest : {};
     const title = resolveText(contest.title) || contestKey;
     const alias = resolveText(contest.alias) || null;
+    const file = path.relative(staticRootDir, filePath).replace(/\\/g, "/");
+    const sourcePath = sourceMap[path.basename(filePath)] || null;
+    const unrated = isUnratedContest(contestKey, file, sourcePath, title);
 
     const participants = buildContestParticipants(ranklist, contestKey, teammateIndex, unresolvedEntries);
     if (participants.length > 0) {
       contests.push({
         key: contestKey,
-        file: path.relative(staticRootDir, filePath).replace(/\\/g, "/"),
-        sourcePath: sourceMap[path.basename(filePath)] || null,
+        file,
+        sourcePath,
         title,
         alias,
+        unrated,
         startAt: contest.startAt || null,
         timestamp: parseContestTimestamp(contest),
         participants,
@@ -207,7 +212,7 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
     } else {
       skippedInvalidContests.push({
         key: contestKey,
-        file: path.relative(staticRootDir, filePath).replace(/\\/g, "/"),
+        file,
         reason: "no-valid-participants",
       });
     }
@@ -241,11 +246,13 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
       state.rating = newRating;
       state.maxRating = Math.max(state.maxRating, newRating);
       state.lastDelta = item.delta;
+      // Unrated contests rate normally, but their stored rating is omitted so
+      // that the frontend can mark the change as not counting.
       state.history.push([
         contest.index,
         item.rank,
         item.delta,
-        newRating,
+        contest.unrated ? null : newRating,
         item.performanceRating,
         item.seedRating,
         item.predictedRank,
@@ -309,6 +316,7 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
       sourcePath: contest.sourcePath,
       title: contest.title,
       alias: contest.alias,
+      unrated: contest.unrated,
       startAt: contest.startAt,
       participantCount: contest.participants.length,
       statistics: contest.statistics || null,

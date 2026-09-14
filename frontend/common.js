@@ -10,18 +10,33 @@ window.xcpcFrontendUtils = {
   unpackPlayerHistory(data) {
     data.players.forEach((player) => {
       player.history = player.history.map((event) => {
+        const newRating = event[3];
         return {
           contestId: event[0],
           contest: data.contests[event[0]] || null,
           rank: event[1],
           delta: event[2],
-          newRating: event[3],
+          newRating,
+          // Unrated contests keep their delta but store no rating.
+          unrated: newRating === null,
           performanceRating: event[4],
           seedRating: event[5],
           predictedRank: event[6],
         };
       });
     });
+  },
+
+  /**
+   * Builds the CSS classes of a delta cell.
+   *
+   * @param {number} value Delta value.
+   * @param {boolean} unrated Whether the delta belongs to an unrated contest.
+   * @returns {string} Space separated class names.
+   */
+  deltaClasses(value, unrated) {
+    const tone = value > 0 ? "delta-positive" : value < 0 ? "delta-negative" : "delta-neutral";
+    return unrated ? `${tone} delta-unrated` : tone;
   },
 
   /**

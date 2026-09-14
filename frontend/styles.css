@@ -314,6 +314,10 @@ tbody tr.team-border {
   color: var(--muted);
 }
 
+.delta-unrated {
+  text-decoration: line-through;
+}
+
 .chart-wrap {
   margin-top: 12px;
   border: 1px solid var(--border);
