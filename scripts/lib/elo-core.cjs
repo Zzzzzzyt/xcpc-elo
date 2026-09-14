@@ -310,7 +310,7 @@ function applyCodeforcesUpdate(input, playerStates) {
 
     if (upperTeam && lowerTeam) {
       const share = (team.rank - upperTeam.rank) / (lowerTeam.rank - upperTeam.rank);
-      team.rating = Math.round(upperTeam.rating + (lowerTeam.rating - upperTeam.rating) * share);
+      team.rating = (upperTeam.rating + (lowerTeam.rating - upperTeam.rating) * share);
     } else {
       // team.rating = aggregation(getRatings(team.members), 0);
     }
@@ -383,7 +383,7 @@ function applyCodeforcesUpdate(input, playerStates) {
         performanceRating: Math.round(performanceRating),
         neededRating: Math.round(neededRating),
         seed: team.seed,
-        delta: Math.trunc((neededRating - oldRating) * ELO_UPDATE_FACTOR),
+        delta: Math.round((neededRating - oldRating) * ELO_UPDATE_FACTOR),
       });
     }
   }
