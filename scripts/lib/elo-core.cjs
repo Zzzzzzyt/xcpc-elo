@@ -96,7 +96,7 @@ const ELO_SCALE = envNumber("XCPC_ELO_SCALE", 400);
 const ELO_INITIAL_RATING = envNumber("XCPC_ELO_INITIAL_RATING", 1400);
 const ELO_UPDATE_FACTOR = envNumber("XCPC_ELO_UPDATE_FACTOR", 0.75);
 const ELO_SEARCH_OFFSET = envNumber("XCPC_ELO_SEARCH_OFFSET", 0.5);
-const ELO_SEED_RANK_RADIUS = envNumber("XCPC_ELO_SEED_RANK_RADIUS", 50);
+const ELO_SEED_RANK_RADIUS = envNumber("XCPC_ELO_SEED_RANK_RADIUS", 100000);
 const ELO_MIN_ADJUST_DELTA = envNumber("XCPC_ELO_MIN_ADJUST_DELTA", 0);
 const ELO_MAX_ADJUST_DELTA = envNumber("XCPC_ELO_MAX_ADJUST_DELTA", 0);
 const ELO_MIN_ADJUST_TOP_DELTA = envNumber("XCPC_ELO_MIN_ADJUST_TOP_DELTA", 0);
@@ -326,37 +326,40 @@ function applyCodeforcesUpdate(input, playerStates) {
   // at its initial rating.
   const minRank = 1;
   const maxRank = teams.length;
-  for (const team of teams) {
+
+  // Teams arrive in rank order with contiguous ranks, so one scan per direction
+  // finds the closest rated team on each side of every rank, which keeps this
+  // linear in the number of teams instead of scanning up to
+  // ELO_SEED_RANK_RADIUS ranks per team.
+  const previousRated = new Array(teams.length).fill(-1);
+  let lastRated = -1;
+  for (let index = 0; index < teams.length; index += 1) {
+    previousRated[index] = lastRated;
+    if (teams[index].hasHistory) {
+      lastRated = index;
+    }
+  }
+
+  let upcomingRated = -1;
+  for (let index = teams.length - 1; index >= 0; index -= 1) {
+    const team = teams[index];
     if (team.hasHistory) {
+      upcomingRated = index;
       continue;
     }
 
-    let upperTeam = null;
-    let lowerTeam = null;
-    for (let offset = 1; offset <= ELO_SEED_RANK_RADIUS; offset += 1) {
-      if (!upperTeam && team.rank - offset >= minRank) {
-        const candidate = teams[team.rank - offset - 1];
-        if (candidate.hasHistory) {
-          upperTeam = candidate;
-        }
-      }
-      if (!lowerTeam && team.rank + offset <= maxRank) {
-        const candidate = teams[team.rank + offset - 1];
-        if (candidate.hasHistory) {
-          lowerTeam = candidate;
-        }
-      }
-    }
+    const upperTeam = previousRated[index] < 0 ? null : teams[previousRated[index]];
+    const lowerTeam = upcomingRated < 0 ? null : teams[upcomingRated];
+    const upperInRange = upperTeam !== null && team.rank - upperTeam.rank <= ELO_SEED_RANK_RADIUS;
+    const lowerInRange = lowerTeam !== null && lowerTeam.rank - team.rank <= ELO_SEED_RANK_RADIUS;
 
-    if (upperTeam && lowerTeam) {
+    if (upperInRange && lowerInRange) {
       const share = (team.rank - upperTeam.rank) / (lowerTeam.rank - upperTeam.rank);
       team.rating = upperTeam.rating + (lowerTeam.rating - upperTeam.rating) * share;
-    } else if (team.rank - ELO_SEED_RANK_RADIUS < minRank && lowerTeam) {
+    } else if (team.rank - ELO_SEED_RANK_RADIUS < minRank && lowerInRange) {
       team.rating = lowerTeam.rating;
-    } else if (team.rank + ELO_SEED_RANK_RADIUS > maxRank && upperTeam) {
+    } else if (team.rank + ELO_SEED_RANK_RADIUS > maxRank && upperInRange) {
       team.rating = upperTeam.rating;
-    } else {
-      // team.rating = aggregation(getRatings(team.members), 0);
     }
   }
 

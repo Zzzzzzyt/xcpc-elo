@@ -17,12 +17,12 @@ const experimentDir = "out/elo-experiment";
 if (!fs.existsSync(experimentDir)) fs.mkdirSync(experimentDir, { recursive: true });
 const sourceMap = path.join(rootDir, "out", "source-map.json");
 if (fs.existsSync(sourceMap)) fs.copyFileSync(sourceMap, path.join(experimentDir, "source-map.json"));
-const updateFactors = [0.75];
+const updateFactors = [0.7, 0.75, 0.8];
 const scales = [400];
 const searchOffsets = [0.5];
-const seedRankRadii = [50];
+const seedRankRadii = [50, 100, 10000];
 const adjustDeltaLimits = [0];
-const aggregationMethods = ["log-power-mean", "mean"];
+const aggregationMethods = ["log-power-mean"];
 const predictionAggregationMethods = [null];
 
 // Layout of the player history rows written by compute-teammate-elo.cjs.
