@@ -8,10 +8,10 @@
  * @param {number[]} ratings Ratings to convert.
  * @returns {number} Summed rating power.
  */
-function sumRatingPower(ratings) {
+function sumRatingPower(ratings, scale) {
   var total = 0;
   for (const rating of ratings) {
-    total += Math.pow(10, rating / ELO_SCALE);
+    total += Math.pow(10, rating / scale);
   }
   return total;
 }
@@ -27,9 +27,11 @@ const TEAM_RATING_AGGREGATIONS = {
   "log-power-sum": (ratedRatings, unratedCount) =>
     ratedRatings.length === 0
       ? ELO_INITIAL_RATING + Math.log10(unratedCount) * ELO_SCALE
-      : Math.log10(sumRatingPower(ratedRatings)) * ELO_SCALE,
+      : Math.log10(sumRatingPower(ratedRatings, ELO_SCALE)) * ELO_SCALE,
   "log-power-mean": (ratedRatings, unratedCount) =>
-    ratedRatings.length === 0 ? ELO_INITIAL_RATING : Math.log10(sumRatingPower(ratedRatings) / ratedRatings.length) * ELO_SCALE,
+    ratedRatings.length === 0
+      ? ELO_INITIAL_RATING
+      : Math.log10(sumRatingPower(ratedRatings, ELO_SCALE) / ratedRatings.length) * ELO_SCALE,
   mean: (ratedRatings, unratedCount) =>
     ratedRatings.length === 0
       ? ELO_INITIAL_RATING
@@ -39,7 +41,7 @@ const TEAM_RATING_AGGREGATIONS = {
 /**
  * Member rating from team rating aggregations.
  */
-const MEMBER_RATING_AGGREGATIONS = {
+const MEMBER_RATING_FUNCTIONS = {
   "log-power-sum": (teamRating, memberCount) => teamRating - ELO_SCALE * Math.log10(memberCount),
   "log-power-mean": (teamRating, memberCount) => teamRating,
   mean: (teamRating, memberCount) => teamRating,
@@ -92,17 +94,17 @@ const MAX_RATING_FOR_SEARCH = 20000;
 
 const ELO_SCALE = envNumber("XCPC_ELO_SCALE", 400);
 const ELO_INITIAL_RATING = envNumber("XCPC_ELO_INITIAL_RATING", 1400);
-const ELO_UPDATE_FACTOR = envNumber("XCPC_ELO_UPDATE_FACTOR", 0.65);
+const ELO_UPDATE_FACTOR = envNumber("XCPC_ELO_UPDATE_FACTOR", 0.75);
 const ELO_SEARCH_OFFSET = envNumber("XCPC_ELO_SEARCH_OFFSET", 0.5);
-const ELO_SEED_RANK_RADIUS = envNumber("XCPC_ELO_SEED_RANK_RADIUS", 2);
-const ELO_MIN_ADJUST_DELTA = envNumber("XCPC_ELO_MIN_ADJUST_DELTA", Number.MIN_SAFE_INTEGER);
-const ELO_MAX_ADJUST_DELTA = envNumber("XCPC_ELO_MAX_ADJUST_DELTA", Number.MAX_SAFE_INTEGER);
+const ELO_SEED_RANK_RADIUS = envNumber("XCPC_ELO_SEED_RANK_RADIUS", 50);
+const ELO_MIN_ADJUST_DELTA = envNumber("XCPC_ELO_MIN_ADJUST_DELTA", 0);
+const ELO_MAX_ADJUST_DELTA = envNumber("XCPC_ELO_MAX_ADJUST_DELTA", 0);
 const ELO_MIN_ADJUST_TOP_DELTA = envNumber("XCPC_ELO_MIN_ADJUST_TOP_DELTA", 0);
 const ELO_MAX_ADJUST_TOP_DELTA = envNumber("XCPC_ELO_MAX_ADJUST_TOP_DELTA", 0);
 
 // Aggregation driving the Elo computation: the seed model, and through it the
 // performance and needed rating of every team.
-const ELO_TEAM_RATING_AGGREGATION = envAggregation("XCPC_ELO_TEAM_RATING_AGGREGATION", "log-power-sum");
+const ELO_TEAM_RATING_AGGREGATION = envAggregation("XCPC_ELO_TEAM_RATING_AGGREGATION", "log-power-mean");
 
 /**
  * Builds rating/seed lookup helpers for a participant population.
@@ -266,7 +268,7 @@ function applyCodeforcesUpdate(input, playerStates) {
   }
 
   const aggregation = TEAM_RATING_AGGREGATIONS[ELO_TEAM_RATING_AGGREGATION];
-  const calculateMemberRating = MEMBER_RATING_AGGREGATIONS[ELO_TEAM_RATING_AGGREGATION];
+  const calculateMemberRating = MEMBER_RATING_FUNCTIONS[ELO_TEAM_RATING_AGGREGATION];
 
   const teams = input.map((team) => ({
     rank: team.rank,
@@ -281,11 +283,48 @@ function applyCodeforcesUpdate(input, playerStates) {
     delta: 0,
   }));
 
-  const teamsByRank = new Map(teams.map((team) => [team.rank, team]));
+  // Rank prediction only uses what is known before the contest: teams with rated
+  // members keep their aggregated rating, teams without history are assumed to be
+  // at the initial rating. The interpolation below is part of the Elo computation
+  // and must not leak the contest outcome into the prediction.
+  const predictedOrder = [...teams].sort((left, right) => right.rating - left.rating);
+
+  var deviation = 0;
+  predictedOrder.forEach((team, index) => {
+    if (team.shouldPredict) {
+      team.predictedRank = index + 1;
+      const diff = team.rank - team.predictedRank;
+      deviation += diff * diff;
+    }
+  });
+
+  const predictedTeams = [];
+  for (const team of teams) {
+    if (team.shouldPredict) {
+      predictedTeams.push({ ratedRank: predictedTeams.length + 1, rating: team.rating });
+    }
+  }
+  predictedTeams.sort((left, right) => right.rating - left.rating);
+  predictedTeams.forEach((team, index) => {
+    team.predictedRatedRank = index + 1;
+  });
+
+  var spearmanSum = 0;
+  for (const team of predictedTeams) {
+    const diff = team.predictedRatedRank - team.ratedRank;
+    spearmanSum += diff * diff;
+  }
+
+  const predictionStats = {
+    predictionTeamCount: predictedTeams.length,
+    predictionSpearman: 1 - (6 * spearmanSum) / (predictedTeams.length * (predictedTeams.length * predictedTeams.length - 1)),
+    predictionStddev: Math.sqrt(deviation / predictedTeams.length),
+  };
 
   // Teams without contest history are anchored to the closest rated teams around
   // their rank; without an anchor on both sides every member joins the aggregate
   // at its initial rating.
+  const teamsByRank = new Map(teams.map((team) => [team.rank, team]));
   for (const team of teams) {
     if (team.hasHistory) {
       continue;
@@ -310,7 +349,7 @@ function applyCodeforcesUpdate(input, playerStates) {
 
     if (upperTeam && lowerTeam) {
       const share = (team.rank - upperTeam.rank) / (lowerTeam.rank - upperTeam.rank);
-      team.rating = (upperTeam.rating + (lowerTeam.rating - upperTeam.rating) * share);
+      team.rating = upperTeam.rating + (lowerTeam.rating - upperTeam.rating) * share;
     } else {
       // team.rating = aggregation(getRatings(team.members), 0);
     }
@@ -330,41 +369,6 @@ function applyCodeforcesUpdate(input, playerStates) {
     const middleRank = Math.sqrt(team.rank * team.seed);
     team.neededRating = seedModel.findRatingForSeed(middleRank);
   }
-
-  const predictedTeams = [];
-
-  for (const team of teams) {
-    if (team.shouldPredict) {
-      predictedTeams.push({ ratedRank: predictedTeams.length + 1, rating: team.rating });
-    }
-  }
-
-  const ratedOrder = [...predictedTeams].sort((left, right) => right.rating - left.rating);
-  ratedOrder.forEach((team, index) => {
-    team.predictedRatedRank = index + 1;
-  });
-
-  var spearmanSum = 0;
-  for (const team of predictedTeams) {
-    const diff = team.predictedRatedRank - team.ratedRank;
-    spearmanSum += diff * diff;
-  }
-
-  const predictedOrder = [...teams].sort((left, right) => right.rating - left.rating);
-  var deviation = 0;
-  predictedOrder.forEach((team, index) => {
-    if (team.shouldPredict) {
-      team.predictedRank = index + 1;
-      const diff = team.rank - team.predictedRank;
-      deviation += diff * diff;
-    }
-  });
-
-  const predictionStats = {
-    predictionTeamCount: predictedTeams.length,
-    predictionSpearman: 1 - (6 * spearmanSum) / (predictedTeams.length * (predictedTeams.length * predictedTeams.length - 1)),
-    predictionStddev: Math.sqrt(deviation / predictedTeams.length),
-  };
 
   // ELO computation starts below:
 
