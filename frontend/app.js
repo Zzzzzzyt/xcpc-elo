@@ -49,8 +49,7 @@
     return names[value] || value.toUpperCase();
   }
 
-  const { unpackPlayerHistory, colorizeRating, deltaClasses, escapeHtml, formatDelta, updateUrl } =
-    window.xcpcFrontendUtils;
+  const { unpackPlayerHistory, colorizeRating, deltaClasses, escapeHtml, formatDelta, updateUrl } = window.xcpcFrontendUtils;
   unpackPlayerHistory(data);
   const contests = data.contests;
   const contestTimestampByIndex = contests.map((contest) => parseContestStartTimestamp(contest && contest.startAt));
@@ -148,7 +147,10 @@
    * Updates the global subtitle with dataset statistics.
    */
   function renderSummary() {
-    subtitle.textContent = `共 ${data.totals.players.toLocaleString()} 名选手，${data.totals.contests.toLocaleString()} 场比赛，生成时间: ${new Date(data.generatedAt).toLocaleString("zh-CN")}，ELO 初始分: ${initialRating}，ELO 缩放系数: ${eloScale}，ELO 更新系数: ${eloUpdateFactor}`;
+    subtitle.textContent =
+      `共 ${data.totals.players.toLocaleString()} 名选手，${data.totals.contests.toLocaleString()} 场比赛，` +
+      `生成时间: ${new Date(data.generatedAt).toLocaleString("zh-CN")} 初始分: ${initialRating}，缩放系数: ${eloScale}，更新系数: ${eloUpdateFactor}，` +
+      `rating聚合函数: ${data.config.teamRatingAggregation}`;
   }
 
   /**
