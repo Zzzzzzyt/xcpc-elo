@@ -324,7 +324,8 @@ function applyCodeforcesUpdate(input, playerStates) {
   // Teams without contest history are anchored to the closest rated teams around
   // their rank; without an anchor on both sides every member joins the aggregate
   // at its initial rating.
-  const teamsByRank = new Map(teams.map((team) => [team.rank, team]));
+  const minRank = 1;
+  const maxRank = teams.length;
   for (const team of teams) {
     if (team.hasHistory) {
       continue;
@@ -333,15 +334,15 @@ function applyCodeforcesUpdate(input, playerStates) {
     let upperTeam = null;
     let lowerTeam = null;
     for (let offset = 1; offset <= ELO_SEED_RANK_RADIUS; offset += 1) {
-      if (!upperTeam) {
-        const candidate = teamsByRank.get(team.rank - offset);
-        if (candidate && candidate.hasHistory) {
+      if (!upperTeam && team.rank - offset >= minRank) {
+        const candidate = teams[team.rank - offset - 1];
+        if (candidate.hasHistory) {
           upperTeam = candidate;
         }
       }
-      if (!lowerTeam) {
-        const candidate = teamsByRank.get(team.rank + offset);
-        if (candidate && candidate.hasHistory) {
+      if (!lowerTeam && team.rank + offset <= maxRank) {
+        const candidate = teams[team.rank + offset - 1];
+        if (candidate.hasHistory) {
           lowerTeam = candidate;
         }
       }
@@ -350,6 +351,10 @@ function applyCodeforcesUpdate(input, playerStates) {
     if (upperTeam && lowerTeam) {
       const share = (team.rank - upperTeam.rank) / (lowerTeam.rank - upperTeam.rank);
       team.rating = upperTeam.rating + (lowerTeam.rating - upperTeam.rating) * share;
+    } else if (team.rank - ELO_SEED_RANK_RADIUS < minRank && lowerTeam) {
+      team.rating = lowerTeam.rating;
+    } else if (team.rank + ELO_SEED_RANK_RADIUS > maxRank && upperTeam) {
+      team.rating = upperTeam.rating;
     } else {
       // team.rating = aggregation(getRatings(team.members), 0);
     }
