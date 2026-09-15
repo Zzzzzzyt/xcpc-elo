@@ -273,6 +273,7 @@ function applyCodeforcesUpdate(input, playerStates) {
   const teams = input.map((team) => ({
     rank: team.rank,
     members: team.members,
+    teamName: team.teamName,
     rating: calculateTeamRating(team, aggregation),
     hasHistory: team.members.some((member) => hasContestHistory(member)),
     shouldPredict: predictionPossible(team),
@@ -384,7 +385,7 @@ function applyCodeforcesUpdate(input, playerStates) {
   for (const team of teams) {
     const neededRating = calculateMemberRating(team.neededRating, team.members.length);
     const performanceRating = calculateMemberRating(team.performanceRating, team.members.length);
-    for (const member of team.members) {
+    team.members.forEach((member, index) => {
       const oldRating = getRating(member);
       output.push({
         id: member,
@@ -396,8 +397,10 @@ function applyCodeforcesUpdate(input, playerStates) {
         neededRating: Math.round(neededRating),
         seed: team.seed,
         delta: Math.round((neededRating - oldRating) * ELO_UPDATE_FACTOR),
+        teamName: team.teamName,
+        memberIndex: index,
       });
-    }
+    });
   }
 
   output.sort((a, b) => b.rating - a.rating || a.rank - b.rank);

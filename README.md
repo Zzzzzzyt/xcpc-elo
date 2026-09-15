@@ -25,6 +25,8 @@ This runs the full workflow in order:
 4. Build frontend assets  
    `npm run step:4:build-frontend`
 
+`npm run workflow:recompute-elo` is equivalent to steps 3 & 4.
+
 ## Predict Ranking From Registration CSV
 
 Use `scripts/predict-ranking.cjs` to estimate team ranking from teammate Elo.

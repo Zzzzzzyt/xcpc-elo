@@ -258,10 +258,12 @@
 
     const globalRank = globalRankByCurrent.get(player.id);
     playerName.textContent = `${player.organization || "未知组织"} - ${player.name}`;
-    playerMeta.innerHTML = `当前排名 #${globalRank} | 当前分 ${formatRatingColored(player.rating, player.rating)} | 历史最高 ${formatRatingColored(
-      player.maxRating,
-      formatTopRating(player.maxRating),
-    )} | 参赛 ${player.contests} 场 | 最后参赛 ${formatDateOnly(player.lastCompetedTimestamp)}`;
+    playerMeta.innerHTML =
+      `当前排名 #${globalRank} | 当前 ${formatRatingColored(player.rating, player.rating)} | 最高 ${formatRatingColored(
+        player.maxRating,
+        formatTopRating(player.maxRating),
+      )} | 参赛 ${player.contests} 场 | 最后参赛 ${formatDateOnly(player.lastCompetedTimestamp)}` +
+      `&nbsp;<a href="https://hei-maom.github.io/xcpcrating/#/player/${encodeURI(player.name)}%40${encodeURI(player.organization)}" target="_blank">XCPC-Rating</a>`;
 
     drawChart(player);
     renderHistory(player);

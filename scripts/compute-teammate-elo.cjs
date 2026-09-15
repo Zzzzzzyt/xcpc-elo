@@ -124,6 +124,7 @@ function buildContestParticipants(ranklist, contestKey, teammateIndex, unresolve
     const row = rows[index];
     const user = row && row.user ? row.user : {};
     const organization = normalize(resolveText(user.organization));
+    const teamName = normalize(resolveText(user.name));
     const teamMembers = Array.isArray(user.teamMembers) ? user.teamMembers : [];
     const outputMembers = [];
     if (!organization || !teamMembers.length) {
@@ -159,7 +160,7 @@ function buildContestParticipants(ranklist, contestKey, teammateIndex, unresolve
       }
       outputMembers.push(id);
     }
-    output.push({ rank, members: outputMembers });
+    output.push({ teamName, rank, members: outputMembers });
     rank++;
   }
 
@@ -188,7 +189,7 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
 
   for (const filePath of staticFiles) {
     const ranklist = readJson(filePath);
-    const contestKey = path.basename(filePath, ".static.srk.json");
+    const contestKey = path.basename(filePath, ".json");
     const contest = ranklist && ranklist.contest ? ranklist.contest : {};
     const title = resolveText(contest.title) || contestKey;
     const alias = resolveText(contest.alias) || null;
@@ -256,6 +257,8 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
         item.performanceRating,
         item.seedRating,
         item.predictedRank,
+        // item.memberIndex,
+        // item.teamName,
       ]);
       totalRatingEvents += 1;
     }
@@ -296,8 +299,6 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
       totalMappedTeammates: teammateIndex.byId.size,
     },
     config: {
-      algorithm: "Codeforces rating (seed / mid-rank / two-step correction)",
-      rankRule: "team rank = row index in ranklist.rows (1-based)",
       initialRating,
       eloScale: ELO_SCALE,
       eloUpdateFactor: ELO_UPDATE_FACTOR,

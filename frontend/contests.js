@@ -9,8 +9,7 @@
     return;
   }
 
-  const { unpackPlayerHistory, colorizeRating, deltaClasses, escapeHtml, formatDelta, updateUrl } =
-    window.xcpcFrontendUtils;
+  const { unpackPlayerHistory, colorizeRating, deltaClasses, escapeHtml, formatDelta, updateUrl } = window.xcpcFrontendUtils;
   const contestDisplayTitle = (contest, index) => {
     if (!contest) return `比赛 #${index}`;
     if (!contest.alias) return contest.title || `比赛 #${index}`;
@@ -89,7 +88,7 @@
   function render() {
     if (!select.value) {
       title.textContent = "没有符合筛选条件的比赛";
-      meta.textContent = "请调整比赛系列或年份。";
+      meta.innerHTML = "请调整比赛系列或年份。";
       statistics.innerHTML = "";
       clearPredictionHistogram();
       body.innerHTML = "";
@@ -112,7 +111,11 @@
     participants.sort((a, b) => (a.rank || Number.MAX_SAFE_INTEGER) - (b.rank || Number.MAX_SAFE_INTEGER));
     title.textContent = contest.title || `比赛 #${index}`;
     const unratedNote = contest.unrated ? " · unrated（不计入 rating）" : "";
-    meta.textContent = `${contest.startAt ? new Date(contest.startAt).toLocaleString("zh-CN") : "日期未知"} · ${d.participantCount} 名参赛选手 · ${d.teamCount} 支参赛队伍${unratedNote}`;
+    const hmmKey = contest.sourcePath.replace(/.srk.json$/, "").replace(/\//g, "__");
+    meta.innerHTML =
+      `${contest.startAt ? new Date(contest.startAt).toLocaleString("zh-CN") : "日期未知"} · ${d.participantCount} 名参赛选手 · ${d.teamCount} 支参赛队伍${unratedNote}` +
+      `&nbsp;<a href="https://rl.algoux.cn/ranklist/${contest.key}" target="_blank">查看榜单</a>` +
+      `&nbsp;<a href="https://hei-maom.github.io/xcpcrating/#/contest/${hmmKey}" target="_blank">XCPC-Rating</a>`;
     const predictionRankDifferences = [];
     participants.forEach((event, index) => {
       if ((index == 0 || event.rank != participants[index - 1].rank) && event.predictedRank) {
