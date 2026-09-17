@@ -17,11 +17,18 @@ const experimentDir = "out/elo-experiment";
 if (!fs.existsSync(experimentDir)) fs.mkdirSync(experimentDir, { recursive: true });
 const sourceMap = path.join(rootDir, "out", "source-map.json");
 if (fs.existsSync(sourceMap)) fs.copyFileSync(sourceMap, path.join(experimentDir, "source-map.json"));
-const updateFactors = [0.7, 0.75, 0.8];
+const updateFactors = [0.75, 0.8];
 const scales = [400];
 const searchOffsets = [0.5];
-const seedRankRadii = [50, 100, 10000];
-const adjustDeltaLimits = [0];
+const seedRankRadii = [1000000];
+const adjustDeltaRanges = [
+  { name: "off", min: 0, max: 0 },
+  { name: "cap-10", min: -10, max: 10 },
+  // { name: "cap-15", min: -15, max: 15 },
+  // { name: "cap-20", min: -20, max: 20 },
+  // { name: "deflation-only", min: -10000, max: 0 },
+  // { name: "full", min: -10000, max: 10000 },
+];
 const aggregationMethods = ["log-power-mean"];
 const predictionAggregationMethods = [null];
 
@@ -232,9 +239,10 @@ function computeTopRecall(teams, fraction) {
 // defined for that contest.
 const statisticsMethods = [
   { name: "spearman", compute: computeSpearman },
-  { name: "stddev", compute: computeRankStddev },
+  // { name: "stddev", compute: computeRankStddev },
   { name: "top10Recall", compute: (teams) => computeTopRecall(teams, 0.1) },
   { name: "top30Recall", compute: (teams) => computeTopRecall(teams, 0.3) },
+  { name: "top60Recall", compute: (teams) => computeTopRecall(teams, 0.6) },
 ];
 
 /**
@@ -273,14 +281,95 @@ function aggregateStatistics(output, predictionAggregationMethod) {
 
     const weightSum = samples.reduce((sum, sample) => sum + sample.teamCount, 0);
     summary.statistics[method.name] = {
-      sampleCount: samples.length,
+      // sampleCount: samples.length,
       macroMean: samples.length > 0 ? samples.reduce((sum, sample) => sum + sample.value, 0) / samples.length : null,
-      weightedMean:
-        weightSum > 0 ? samples.reduce((sum, sample) => sum + sample.value * sample.teamCount, 0) / weightSum : null,
+      // weightedMean:
+      //   weightSum > 0 ? samples.reduce((sum, sample) => sum + sample.value * sample.teamCount, 0) / weightSum : null,
     };
   }
 
   return summary;
+}
+
+/**
+ * Summarizes absolute rating drift for one parameter run.
+ *
+ * Prediction metrics are invariant to a common rating offset, so they cannot
+ * reveal inflation on their own. These figures make the stability trade-off
+ * visible next to prediction quality in the experiment output.
+ *
+ * @param {object} output Elo output document.
+ * @returns {object} Rating mass and final-rating cohort means.
+ */
+function aggregateRatingStability(output) {
+  const initialRating = output.config.initialRating;
+  const contests = output.contests || [];
+  const latestYear = contests.reduce((latest, contest) => {
+    const year = contest.startAt ? new Date(contest.startAt).getFullYear() : 0;
+    return Math.max(latest, year);
+  }, 0);
+
+  let totalDelta = 0;
+  let firstAppearanceDelta = 0;
+  let returningAppearanceDelta = 0;
+  let returningAppearanceCount = 0;
+  let ratedCount = 0;
+  let finalRatingSum = 0;
+  let frequentCount = 0;
+  let frequentRatingSum = 0;
+  let latestActiveCount = 0;
+  let latestActiveRatingSum = 0;
+  let latestFrequentCount = 0;
+  let latestFrequentRatingSum = 0;
+
+  for (const player of output.players || []) {
+    const history = player.history || [];
+    if (history.length === 0) {
+      continue;
+    }
+
+    const playerDelta = history.reduce((sum, entry) => sum + entry[HISTORY_DELTA], 0);
+    const finalRating = initialRating + playerDelta;
+    totalDelta += playerDelta;
+    firstAppearanceDelta += history[0][HISTORY_DELTA];
+    for (let index = 1; index < history.length; index += 1) {
+      returningAppearanceDelta += history[index][HISTORY_DELTA];
+      returningAppearanceCount += 1;
+    }
+    ratedCount += 1;
+    finalRatingSum += finalRating;
+
+    const frequent = history.length >= 10;
+    if (frequent) {
+      frequentCount += 1;
+      frequentRatingSum += finalRating;
+    }
+
+    const lastContest = contests[history[history.length - 1][HISTORY_CONTEST_INDEX]];
+    const lastYear = lastContest && lastContest.startAt ? new Date(lastContest.startAt).getFullYear() : 0;
+    if (lastYear === latestYear) {
+      latestActiveCount += 1;
+      latestActiveRatingSum += finalRating;
+      if (frequent) {
+        latestFrequentCount += 1;
+        latestFrequentRatingSum += finalRating;
+      }
+    }
+  }
+
+  return {
+    totalDelta,
+    firstAppearanceDelta,
+    returningAppearanceDelta,
+    meanReturningAppearanceDelta:
+      returningAppearanceCount > 0 ? returningAppearanceDelta / returningAppearanceCount : null,
+    meanFinalRating: ratedCount > 0 ? finalRatingSum / ratedCount : null,
+    frequentMeanFinalRating: frequentCount > 0 ? frequentRatingSum / frequentCount : null,
+    latestActiveYear: latestYear,
+    latestActiveMeanFinalRating: latestActiveCount > 0 ? latestActiveRatingSum / latestActiveCount : null,
+    latestFrequentMeanFinalRating:
+      latestFrequentCount > 0 ? latestFrequentRatingSum / latestFrequentCount : null,
+  };
 }
 
 /**
@@ -300,7 +389,7 @@ for (const scale of scales) {
   for (const updateFactor of updateFactors) {
     for (const searchOffset of searchOffsets) {
       for (const seedRankRadius of seedRankRadii) {
-        for (const adjustDeltaLimit of adjustDeltaLimits) {
+        for (const adjustDeltaRange of adjustDeltaRanges) {
           for (const aggregationMethod of aggregationMethods) {
             for (const predictionAggregationMethod of predictionAggregationMethods) {
               console.log(
@@ -309,7 +398,7 @@ for (const scale of scales) {
                 updateFactor,
                 searchOffset,
                 seedRankRadius,
-                adjustDeltaLimit,
+                adjustDeltaRange.name,
                 aggregationMethod,
                 predictionAggregationMethod,
               );
@@ -325,23 +414,27 @@ for (const scale of scales) {
                     XCPC_ELO_UPDATE_FACTOR: `${updateFactor}`,
                     XCPC_ELO_SEARCH_OFFSET: `${searchOffset}`,
                     XCPC_ELO_SEED_RANK_RADIUS: `${seedRankRadius}`,
-                    XCPC_ELO_MIN_ADJUST_DELTA: `${-adjustDeltaLimit}`,
-                    XCPC_ELO_MAX_ADJUST_DELTA: `${adjustDeltaLimit}`,
+                    XCPC_ELO_MIN_ADJUST_DELTA: `${adjustDeltaRange.min}`,
+                    XCPC_ELO_MAX_ADJUST_DELTA: `${adjustDeltaRange.max}`,
                     XCPC_ELO_TEAM_RATING_AGGREGATION: `${aggregationMethod}`,
                   },
                   encoding: "utf8",
                 },
               );
               if (result.status !== 0) throw new Error(result.stderr || result.stdout || `experiment failed!`);
+              const output = JSON.parse(fs.readFileSync(outputFile, "utf8"));
               results.push({
                 scale,
                 updateFactor,
                 searchOffset,
                 seedRankRadius,
-                adjustDeltaLimit,
+                adjustDeltaMode: adjustDeltaRange.name,
+                minAdjustDelta: adjustDeltaRange.min,
+                maxAdjustDelta: adjustDeltaRange.max,
                 aggregationMethod,
                 predictionAggregationMethod,
-                ...aggregateStatistics(JSON.parse(fs.readFileSync(outputFile, "utf8")), predictionAggregationMethod),
+                ...aggregateStatistics(output, predictionAggregationMethod),
+                ratingStability: aggregateRatingStability(output),
               });
             }
           }
@@ -377,7 +470,9 @@ function toCsv(rows) {
     "updateFactor",
     "searchOffset",
     "seedRankRadius",
-    "adjustDeltaLimit",
+    "adjustDeltaMode",
+    "minAdjustDelta",
+    "maxAdjustDelta",
     "aggregationMethod",
     "contests",
   ];
@@ -386,13 +481,27 @@ function toCsv(rows) {
     `${method.name}WeightedMean`,
     `${method.name}Samples`,
   ]);
+  const ratingColumns = [
+    "totalDelta",
+    "firstAppearanceDelta",
+    "returningAppearanceDelta",
+    "meanReturningAppearanceDelta",
+    "meanFinalRating",
+    "frequentMeanFinalRating",
+    "latestActiveYear",
+    "latestActiveMeanFinalRating",
+    "latestFrequentMeanFinalRating",
+  ];
 
-  const lines = [[...configColumns, ...statisticColumns].join(",")];
+  const lines = [[...configColumns, ...statisticColumns, ...ratingColumns].join(",")];
   for (const row of rows) {
     const values = configColumns.map((column) => row[column]);
     for (const method of statisticsMethods) {
       const statistic = row.statistics[method.name] || {};
       values.push(statistic.macroMean, statistic.weightedMean, statistic.sampleCount);
+    }
+    for (const column of ratingColumns) {
+      values.push(row.ratingStability[column]);
     }
     lines.push(values.map(csvCell).join(","));
   }
