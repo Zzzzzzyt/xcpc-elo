@@ -22,7 +22,7 @@
   --rating-color-3: blue;
   --rating-color-4: #a0a;
   --rating-color-5: #ff8c00;
-  --rating-color-6: red;
+  --rating-color-6: #ff8c00;
   --rating-color-7: red;
   --rating-color-8: red;
   --rating-color-9a: black;
@@ -362,7 +362,7 @@ tbody tr.team-border {
     --rating-color-3: #66f;
     --rating-color-4: #c3c;
     --rating-color-5: #ff8c00;
-    --rating-color-6: #f66;
+    --rating-color-6: #ff8c00;
     --rating-color-7: #f66;
     --rating-color-8: #f66;
     --rating-color-9a: #ccc;
