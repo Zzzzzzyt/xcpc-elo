@@ -17,16 +17,15 @@ const experimentDir = "out/elo-experiment";
 if (!fs.existsSync(experimentDir)) fs.mkdirSync(experimentDir, { recursive: true });
 const sourceMap = path.join(rootDir, "out", "source-map.json");
 if (fs.existsSync(sourceMap)) fs.copyFileSync(sourceMap, path.join(experimentDir, "source-map.json"));
-const updateFactors = [0.75, 0.8];
+const updateFactors = [0.7, 0.75, 0.8, 0.85];
 const scales = [400];
 const searchOffsets = [0.5];
 const seedRankRadii = [1000000];
 const adjustDeltaRanges = [
-  { name: "off", min: 0, max: 0 },
-  { name: "cap-10", min: -10, max: 10 },
-  // { name: "cap-15", min: -15, max: 15 },
-  // { name: "cap-20", min: -20, max: 20 },
-  // { name: "deflation-only", min: -10000, max: 0 },
+  // { name: "off", min: 0, max: 0 },
+  // { name: "cap-10", min: -10, max: 10 },
+  { name: "cap-inflation", min: -10000, max: 10 },
+  { name: "deflation-only", min: -10000, max: 0 },
   // { name: "full", min: -10000, max: 10000 },
 ];
 const aggregationMethods = ["log-power-mean"];
@@ -361,14 +360,12 @@ function aggregateRatingStability(output) {
     totalDelta,
     firstAppearanceDelta,
     returningAppearanceDelta,
-    meanReturningAppearanceDelta:
-      returningAppearanceCount > 0 ? returningAppearanceDelta / returningAppearanceCount : null,
+    meanReturningAppearanceDelta: returningAppearanceCount > 0 ? returningAppearanceDelta / returningAppearanceCount : null,
     meanFinalRating: ratedCount > 0 ? finalRatingSum / ratedCount : null,
     frequentMeanFinalRating: frequentCount > 0 ? frequentRatingSum / frequentCount : null,
     latestActiveYear: latestYear,
     latestActiveMeanFinalRating: latestActiveCount > 0 ? latestActiveRatingSum / latestActiveCount : null,
-    latestFrequentMeanFinalRating:
-      latestFrequentCount > 0 ? latestFrequentRatingSum / latestFrequentCount : null,
+    latestFrequentMeanFinalRating: latestFrequentCount > 0 ? latestFrequentRatingSum / latestFrequentCount : null,
   };
 }
 
