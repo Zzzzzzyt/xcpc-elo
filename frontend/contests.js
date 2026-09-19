@@ -25,6 +25,7 @@
   const meta = document.getElementById("contestMeta");
   const statistics = document.getElementById("contestStatistics");
   const predictionHistogram = document.getElementById("predictionHistogram");
+  const postContestRatingHistogram = document.getElementById("postContestRatingHistogram");
   const body = document.getElementById("contestParticipantsBody");
   const hint = document.getElementById("contestHint");
   document.getElementById("subtitle").textContent = `共 ${data.contests.length.toLocaleString()} 场比赛`;
@@ -91,6 +92,7 @@
       meta.innerHTML = "请调整比赛系列或年份。";
       statistics.innerHTML = "";
       clearPredictionHistogram();
+      clearPostContestRatingHistogram();
       body.innerHTML = "";
       hint.textContent = "";
       return;
@@ -123,6 +125,7 @@
       }
     });
     drawPredictionHistogram(predictionRankDifferences);
+    drawPostContestRatingHistogram(participants.map((event) => event.newRating));
     statistics.innerHTML = [
       ["首次参赛选手", d.firstTimeParticipantCount],
       ["首次参赛平均 rating", d.firstTimeParticipantRatingSum / d.firstTimeParticipantCount],
@@ -228,6 +231,66 @@
       window.Plotly.purge(predictionHistogram);
     }
     predictionHistogram.innerHTML = "<p class='hint' style='padding:12px'>暂无可用的赛前排名预测数据。</p>";
+  }
+
+  /**
+   * Draws the distribution of participant ratings after the contest.
+   *
+   * @param {number[]} values Post-contest player ratings.
+   */
+  function drawPostContestRatingHistogram(values) {
+    const ratings = Array.isArray(values) ? values.filter((value) => Number.isFinite(value)) : [];
+    if (!ratings.length) {
+      clearPostContestRatingHistogram();
+      return;
+    }
+    if (!window.Plotly || typeof window.Plotly.react !== "function") {
+      postContestRatingHistogram.innerHTML =
+        "<p style='padding:12px;font-size:13px;color:var(--muted)'>图表组件未加载，无法显示赛后 rating 分布。</p>";
+      return;
+    }
+    const styles = getComputedStyle(document.documentElement);
+    const textColor = styles.getPropertyValue("--ink").trim() || "#1f2d33";
+    const gridColor = styles.getPropertyValue("--chart-grid").trim() || "rgba(16,33,39,0.1)";
+    const accent = styles.getPropertyValue("--accent").trim() || "#107a70";
+    window.Plotly.react(
+      postContestRatingHistogram,
+      [
+        {
+          x: ratings,
+          type: "histogram",
+          xbins: { size: 20 },
+          marker: { color: accent, line: { color: accent, width: 1 } },
+          hovertemplate: "赛后 rating %{x}<br>选手数 %{y}<extra></extra>",
+        },
+      ],
+      {
+        bargap: 0.2,
+        margin: { l: 44, r: 16, t: 12, b: 42 },
+        paper_bgcolor: "rgba(0,0,0,0)",
+        plot_bgcolor: "rgba(0,0,0,0)",
+        xaxis: {
+          title: "赛后 rating",
+          color: textColor,
+          gridcolor: gridColor,
+          zeroline: false,
+        },
+        yaxis: { title: "选手数", color: textColor, gridcolor: gridColor, rangemode: "tozero" },
+        showlegend: false,
+      },
+      { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["select2d", "lasso2d", "autoScale2d"] },
+    );
+  }
+
+  /**
+   * Clears Plotly and shows the empty post-contest rating placeholder.
+   */
+  function clearPostContestRatingHistogram() {
+    if (window.Plotly && typeof window.Plotly.purge === "function") {
+      window.Plotly.purge(postContestRatingHistogram);
+    }
+    postContestRatingHistogram.innerHTML =
+      "<p class='hint' style='padding:12px'>暂无可用的赛后 rating 数据（unrated 比赛不记录赛后 rating）。</p>";
   }
 
   /**

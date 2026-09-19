@@ -148,8 +148,8 @@
    */
   function renderSummary() {
     subtitle.textContent =
-      `共 ${data.totals.players.toLocaleString()} 名选手，${data.totals.contests.toLocaleString()} 场比赛，` +
-      `生成时间: ${new Date(data.generatedAt).toLocaleString("zh-CN")} 初始分: ${initialRating}，缩放系数: ${eloScale}，更新系数: ${eloUpdateFactor}，` +
+      `共 ${data.totals.players.toLocaleString()} 名选手, ${data.totals.contests.toLocaleString()} 场比赛, ` +
+      `生成时间: ${new Date(data.generatedAt).toLocaleString("zh-CN")}; 初始分: ${initialRating}, 缩放系数: ${eloScale}, 更新系数: ${eloUpdateFactor}, ` +
       `rating聚合函数: ${data.config.teamRatingAggregation}`;
   }
 
