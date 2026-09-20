@@ -22,6 +22,7 @@ window.xcpcFrontendUtils = {
           performanceRating: event[4],
           seedRating: event[5],
           predictedRank: event[6],
+          memberIndex: event[7],
         };
       });
     });

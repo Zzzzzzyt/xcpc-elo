@@ -257,7 +257,7 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
         item.performanceRating,
         item.seedRating,
         item.predictedRank,
-        // item.memberIndex,
+        item.memberIndex,
         // item.teamName,
       ]);
       totalRatingEvents += 1;

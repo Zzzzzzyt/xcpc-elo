@@ -110,7 +110,7 @@
       }),
     );
     const d = contest.statistics || {};
-    participants.sort((a, b) => (a.rank || Number.MAX_SAFE_INTEGER) - (b.rank || Number.MAX_SAFE_INTEGER));
+    participants.sort((a, b) => a.rank - b.rank || a.memberIndex - b.memberIndex);
     title.textContent = contest.title || `比赛 #${index}`;
     const unratedNote = contest.unrated ? " · unrated（不计入 rating）" : "";
     const hmmKey = contest.sourcePath.replace(/.srk.json$/, "").replace(/\//g, "__");
@@ -120,7 +120,7 @@
       `&nbsp;<a href="https://hei-maom.github.io/xcpcrating/#/contest/${hmmKey}" target="_blank">XCPC-Rating</a>`;
     const predictionRankDifferences = [];
     participants.forEach((event, index) => {
-      if ((index == 0 || event.rank != participants[index - 1].rank) && event.predictedRank) {
+      if ((index == 0 || event.memberIndex == 0) && event.predictedRank) {
         predictionRankDifferences.push(event.rank - event.predictedRank);
       }
     });
@@ -156,13 +156,13 @@
             ? "delta-negative"
             : "delta-neutral"
         : "";
-      const teamBorder = index != 0 && rank != participants[index - 1].rank ? 'class="team-border"' : "";
+      const teamBorder = index != 0 && event.memberIndex == 0 ? 'class="team-border"' : "";
       tableHTML += `<tr ${teamBorder}>
-          <td class="mono">${rank}</td>
-          <td class="mono ${predictionDeltaClass}">${predictedRank ? formatDelta(rank - predictedRank) : "N/A"}</td>
+          <td class="mono">${event.memberIndex == 0 ? rank : ""}</td>
+          <td class="mono ${predictionDeltaClass}">${event.memberIndex == 0 ? (predictedRank ? formatDelta(rank - predictedRank) : "N/A") : ""}</td>
           <td><a href="./index.html?player=${encodeURIComponent(player.id)}" target="_blank" rel="noopener noreferrer">${escapeHtml(player.name || player.id)}</a></td>
-          <td>${escapeHtml(player.organization || "")}</td>
-          <td class="mono">${colorizeRating(seedRating, seedRating)}</td>
+          <td>${event.memberIndex == 0 ? escapeHtml(player.organization || "") : ""}</td>
+          <td class="mono">${event.memberIndex == 0 ? colorizeRating(seedRating, seedRating) : ""}</td>
           <td class="mono">${unrated ? "—" : colorizeRating(before, before)}</td>
           <td class="mono">${colorizeRating(performanceRating, performanceRating)}</td>
           <td class="mono ${deltaClass}"${unrated ? ' title="unrated（不计入 rating）"' : ""}>${formatDelta(delta)}</td>
