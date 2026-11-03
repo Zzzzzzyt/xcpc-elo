@@ -17,7 +17,7 @@ const experimentDir = "out/elo-experiment";
 if (!fs.existsSync(experimentDir)) fs.mkdirSync(experimentDir, { recursive: true });
 const sourceMap = path.join(rootDir, "out", "source-map.json");
 if (fs.existsSync(sourceMap)) fs.copyFileSync(sourceMap, path.join(experimentDir, "source-map.json"));
-const updateFactors = [0.8, 0.85, 0.9, 0.95];
+const updateFactors = [0.7, 0.8, 0.9, 0.95];
 const scales = [400];
 const searchOffsets = [0.5];
 const seedRankRadii = [1000000];
@@ -30,8 +30,8 @@ const adjustDeltaRanges = [
 ];
 const aggregationMethods = ["log-power-mean"];
 const predictionAggregationMethods = [null];
-const updateBases = [0.6,0.65];
-const updateDecays = [1, 2, 3];
+const updateBases = [0.5, 0.6, 0.7];
+const updateDecays = [1];
 
 // Layout of the player history rows written by compute-teammate-elo.cjs.
 const HISTORY_CONTEST_INDEX = 0;
@@ -60,7 +60,7 @@ function isScoredContest(contest) {
     !contest.unrated &&
     year >= 2022 &&
     /^(icpc|ccpc)\//i.test(contest.sourcePath) &&
-    !/invitational|preliminary|hongkong/i.test(haystack)
+    !/invitational|ladies|preliminary|hongkong/i.test(haystack)
   );
 }
 
@@ -476,8 +476,8 @@ function toCsv(rows) {
 }
 
 results.sort((left, right) => objectiveValue(right) - objectiveValue(left));
+console.log(JSON.stringify(results, null, 2));
 const csv = toCsv(results);
 const csvFile = path.join(experimentDir, "results.csv");
 fs.writeFileSync(csvFile, `${csv}\n`, "utf8");
-console.log(JSON.stringify(results, null, 2));
 console.log(`\nSaved ${results.length} results sorted by ${objective.statistic}.${objective.kind} to ${csvFile}`);
