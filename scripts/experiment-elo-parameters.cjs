@@ -17,7 +17,7 @@ const experimentDir = "out/elo-experiment";
 if (!fs.existsSync(experimentDir)) fs.mkdirSync(experimentDir, { recursive: true });
 const sourceMap = path.join(rootDir, "out", "source-map.json");
 if (fs.existsSync(sourceMap)) fs.copyFileSync(sourceMap, path.join(experimentDir, "source-map.json"));
-const updateFactors = [0.7, 0.75, 0.8, 0.85];
+const updateFactors = [0.8, 0.85, 0.9, 0.95];
 const scales = [400];
 const searchOffsets = [0.5];
 const seedRankRadii = [1000000];
@@ -30,6 +30,8 @@ const adjustDeltaRanges = [
 ];
 const aggregationMethods = ["log-power-mean"];
 const predictionAggregationMethods = [null];
+const updateBases = [0.6,0.65];
+const updateDecays = [1, 2, 3];
 
 // Layout of the player history rows written by compute-teammate-elo.cjs.
 const HISTORY_CONTEST_INDEX = 0;
@@ -39,6 +41,7 @@ const HISTORY_RATING = 3;
 
 // Statistic used to rank the sweep results.
 const objective = { statistic: "spearman", kind: "macroMean" };
+// const objective = { statistic: "top10Recall", kind: "macroMean" };
 
 /**
  * Checks whether a contest takes part in the experiment population.
@@ -55,7 +58,7 @@ function isScoredContest(contest) {
   const haystack = `${contest.key || ""} ${contest.sourcePath || ""} ${contest.title || ""}`;
   return (
     !contest.unrated &&
-    year >= 2023 &&
+    year >= 2022 &&
     /^(icpc|ccpc)\//i.test(contest.sourcePath) &&
     !/invitational|preliminary|hongkong/i.test(haystack)
   );
@@ -384,58 +387,35 @@ function objectiveValue(result) {
 const results = [];
 for (const scale of scales) {
   for (const updateFactor of updateFactors) {
-    for (const searchOffset of searchOffsets) {
-      for (const seedRankRadius of seedRankRadii) {
-        for (const adjustDeltaRange of adjustDeltaRanges) {
-          for (const aggregationMethod of aggregationMethods) {
-            for (const predictionAggregationMethod of predictionAggregationMethods) {
-              console.log(
-                new Date().toISOString(),
-                scale,
-                updateFactor,
-                searchOffset,
-                seedRankRadius,
-                adjustDeltaRange.name,
-                aggregationMethod,
-                predictionAggregationMethod,
-              );
-              const outputFile = path.join(experimentDir, `tmp-elo.json`);
-              const result = spawnSync(
-                process.execPath,
-                [path.join(rootDir, "scripts", "compute-teammate-elo.cjs"), staticRoot, teammateMap, outputFile],
-                {
-                  cwd: rootDir,
-                  env: {
-                    ...process.env,
-                    XCPC_ELO_SCALE: `${scale}`,
-                    XCPC_ELO_UPDATE_FACTOR: `${updateFactor}`,
-                    XCPC_ELO_SEARCH_OFFSET: `${searchOffset}`,
-                    XCPC_ELO_SEED_RANK_RADIUS: `${seedRankRadius}`,
-                    XCPC_ELO_MIN_ADJUST_DELTA: `${adjustDeltaRange.min}`,
-                    XCPC_ELO_MAX_ADJUST_DELTA: `${adjustDeltaRange.max}`,
-                    XCPC_ELO_TEAM_RATING_AGGREGATION: `${aggregationMethod}`,
-                  },
-                  encoding: "utf8",
-                },
-              );
-              if (result.status !== 0) throw new Error(result.stderr || result.stdout || `experiment failed!`);
-              const output = JSON.parse(fs.readFileSync(outputFile, "utf8"));
-              results.push({
-                scale,
-                updateFactor,
-                searchOffset,
-                seedRankRadius,
-                adjustDeltaMode: adjustDeltaRange.name,
-                minAdjustDelta: adjustDeltaRange.min,
-                maxAdjustDelta: adjustDeltaRange.max,
-                aggregationMethod,
-                predictionAggregationMethod,
-                ...aggregateStatistics(output, predictionAggregationMethod),
-                ratingStability: aggregateRatingStability(output),
-              });
-            }
-          }
-        }
+    for (const updateBase of updateBases) {
+      for (const updateDecay of updateDecays) {
+        console.log(new Date().toISOString(), scale, updateFactor, updateBase, updateDecay);
+        const outputFile = path.join(experimentDir, `tmp-elo.json`);
+        const result = spawnSync(
+          process.execPath,
+          [path.join(rootDir, "scripts", "compute-teammate-elo.cjs"), staticRoot, teammateMap, outputFile],
+          {
+            cwd: rootDir,
+            env: {
+              ...process.env,
+              XCPC_ELO_SCALE: `${scale}`,
+              XCPC_ELO_UPDATE_FACTOR: `${updateFactor}`,
+              XCPC_ELO_UPDATE_BASE: `${updateBase}`,
+              XCPC_ELO_UPDATE_DECAY: `${updateDecay}`,
+            },
+            encoding: "utf8",
+          },
+        );
+        if (result.status !== 0) throw new Error(result.stderr || result.stdout || `experiment failed!`);
+        const output = JSON.parse(fs.readFileSync(outputFile, "utf8"));
+        results.push({
+          scale,
+          updateFactor,
+          updateBase,
+          updateDecay,
+          ...aggregateStatistics(output, null),
+          ratingStability: aggregateRatingStability(output),
+        });
       }
     }
   }
@@ -462,17 +442,7 @@ function csvCell(value) {
  * @returns {string} CSV text with a header row.
  */
 function toCsv(rows) {
-  const configColumns = [
-    "scale",
-    "updateFactor",
-    "searchOffset",
-    "seedRankRadius",
-    "adjustDeltaMode",
-    "minAdjustDelta",
-    "maxAdjustDelta",
-    "aggregationMethod",
-    "contests",
-  ];
+  const configColumns = ["scale", "updateFactor", "updateBase", "updateDecay"];
   const statisticColumns = statisticsMethods.flatMap((method) => [
     `${method.name}MacroMean`,
     `${method.name}WeightedMean`,

@@ -8,6 +8,8 @@ const {
   ELO_SCALE,
   ELO_TEAM_RATING_AGGREGATION,
   ELO_UPDATE_FACTOR,
+  ELO_UPDATE_BASE,
+  ELO_UPDATE_DECAY,
 } = require("./lib/elo-core.cjs");
 const {
   isUnratedContest,
@@ -302,6 +304,8 @@ function buildTeammateElo(staticRootDir, teammateMapFile, outputFile, initialRat
       initialRating,
       eloScale: ELO_SCALE,
       eloUpdateFactor: ELO_UPDATE_FACTOR,
+      eloUpdateBase: ELO_UPDATE_BASE,
+      eloUpdateDecay: ELO_UPDATE_DECAY,
       teamRatingAggregation: ELO_TEAM_RATING_AGGREGATION,
     },
     totals: {

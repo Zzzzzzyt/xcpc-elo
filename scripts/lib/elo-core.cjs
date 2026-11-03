@@ -94,7 +94,9 @@ const MAX_RATING_FOR_SEARCH = 20000;
 
 const ELO_SCALE = envNumber("XCPC_ELO_SCALE", 400);
 const ELO_INITIAL_RATING = envNumber("XCPC_ELO_INITIAL_RATING", 1400);
-const ELO_UPDATE_FACTOR = envNumber("XCPC_ELO_UPDATE_FACTOR", 0.8);
+const ELO_UPDATE_FACTOR = envNumber("XCPC_ELO_UPDATE_FACTOR", 0.9);
+const ELO_UPDATE_BASE = envNumber("XCPC_ELO_UPDATE_BASE", 0.6);
+const ELO_UPDATE_DECAY = envNumber("XCPC_ELO_UPDATE_DECAY", 1);
 const ELO_SEARCH_OFFSET = envNumber("XCPC_ELO_SEARCH_OFFSET", 0.5);
 const ELO_SEED_RANK_RADIUS = envNumber("XCPC_ELO_SEED_RANK_RADIUS", 100000);
 const ELO_MIN_ADJUST_DELTA = envNumber("XCPC_ELO_MIN_ADJUST_DELTA", -10000);
@@ -387,6 +389,9 @@ function applyCodeforcesUpdate(input, playerStates) {
     const performanceRating = calculateMemberRating(team.performanceRating, team.members.length);
     team.members.forEach((member, index) => {
       const oldRating = getRating(member);
+      const lr =
+        ELO_UPDATE_BASE +
+        (ELO_UPDATE_FACTOR - ELO_UPDATE_BASE) * Math.exp(-playerStates.get(member).history.length / ELO_UPDATE_DECAY);
       output.push({
         id: member,
         rank: team.rank,
@@ -396,7 +401,7 @@ function applyCodeforcesUpdate(input, playerStates) {
         performanceRating: Math.round(performanceRating),
         neededRating: Math.round(neededRating),
         seed: team.seed,
-        delta: Math.round((neededRating - oldRating) * ELO_UPDATE_FACTOR),
+        delta: Math.round((neededRating - oldRating) * lr),
         teamName: team.teamName,
         memberIndex: index,
       });
@@ -453,4 +458,6 @@ module.exports = {
   ELO_SCALE,
   ELO_TEAM_RATING_AGGREGATION,
   ELO_UPDATE_FACTOR,
+  ELO_UPDATE_BASE,
+  ELO_UPDATE_DECAY,
 };

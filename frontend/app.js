@@ -56,6 +56,8 @@
   const initialRating = data.config.initialRating;
   const eloScale = data.config.eloScale;
   const eloUpdateFactor = data.config.eloUpdateFactor;
+  const eloUpdateBase = data.config.eloUpdateBase;
+  const eloUpdateDecay = data.config.eloUpdateDecay;
   const players = data.players.map((player) => {
     const maxRating = computeMaxRating(player);
     const lastEvent = player.history[player.history.length - 1];
@@ -149,7 +151,8 @@
   function renderSummary() {
     subtitle.textContent =
       `共 ${data.totals.players.toLocaleString()} 名选手, ${data.totals.contests.toLocaleString()} 场比赛, ` +
-      `生成时间: ${new Date(data.generatedAt).toLocaleString("zh-CN")}; 初始分: ${initialRating}, 缩放系数: ${eloScale}, 更新系数: ${eloUpdateFactor}, ` +
+      `生成时间: ${new Date(data.generatedAt).toLocaleString("zh-CN")}; 初始分: ${initialRating}, 缩放系数: ${eloScale}, ` +
+      `更新系数: ${eloUpdateFactor}-${eloUpdateBase}-${eloUpdateDecay}, ` +
       `rating聚合函数: ${data.config.teamRatingAggregation}`;
   }
 
