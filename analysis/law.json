@@ -1,0 +1,41 @@
+{
+  "model": "t-logit-quadratic",
+  "basis": "rated",
+  "aggregation": "log-power-mean",
+  "params": {
+    "a": 0.04090664102412911,
+    "b": 0.8114355561705193,
+    "c": -0.026604590050172475,
+    "logScale": -0.1567369991624793,
+    "logNu": 1.8828023873289954
+  },
+  "buckets": [
+    [
+      "gold",
+      0.0,
+      0.1
+    ],
+    [
+      "silver",
+      0.1,
+      0.3
+    ],
+    [
+      "bronze",
+      0.3,
+      0.6
+    ],
+    [
+      "iron",
+      0.6,
+      1.0
+    ]
+  ],
+  "trained": {
+    "contests": 55,
+    "appearances": 17303,
+    "population": "core ICPC/CCPC",
+    "minYear": 2022,
+    "basis": "rated"
+  }
+}

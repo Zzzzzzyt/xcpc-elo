@@ -27,6 +27,11 @@
   --rating-color-8: red;
   --rating-color-9a: black;
   --rating-color-9b: red;
+
+  --bucket-gold: #a67c00;
+  --bucket-silver: #5c6f7b;
+  --bucket-bronze: #9a5b2c;
+  --bucket-iron: #777777;
 }
 
 * {
@@ -178,6 +183,11 @@ button:hover {
   background: var(--accent-lighter);
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 a {
   color: #2563eb;
   text-decoration-color: rgba(37, 99, 235, 0.4);
@@ -193,6 +203,106 @@ a:hover {
   margin-top: 12px;
   font-weight: 600;
 }
+.page-link + .page-link {
+  margin-left: 14px;
+}
+
+.drop-zone {
+  margin: 16px 0 0;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 26px 16px;
+  text-align: center;
+  color: var(--muted);
+  background: var(--surface-light);
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.drop-zone:hover,
+.drop-zone.is-active {
+  border-color: var(--accent);
+  background: var(--accent-lighter);
+  color: var(--ink);
+}
+
+.file-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.file-control input {
+  background: var(--surface-light);
+}
+
+.prediction-table {
+  max-height: calc(100vh - 500px);
+}
+
+.unmatched {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.bucket {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.bucket-gold {
+  color: var(--bucket-gold);
+  font-weight: 600;
+}
+
+.bucket-silver {
+  color: var(--bucket-silver);
+}
+
+.bucket-bronze {
+  color: var(--bucket-bronze);
+}
+
+.bucket-iron {
+  color: var(--bucket-iron);
+}
+
+.rank {
+  font-weight: 700;
+}
+
+.rank-gold {
+  color: var(--bucket-gold);
+}
+
+.rank-silver {
+  color: var(--bucket-silver);
+}
+
+.rank-bronze {
+  color: var(--bucket-bronze);
+}
+
+.rank-iron {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.footer-note {
+  padding: 14px 18px;
+}
+
+.footer-note p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.7;
+}
+
 .contest-filters {
   display: grid;
   grid-template-columns: 140px 140px 1fr;
@@ -288,7 +398,6 @@ tbody tr {
 }
 
 tbody tr:hover {
-  cursor: pointer;
   background: var(--accent-lighter);
 }
 
@@ -380,6 +489,11 @@ tbody tr.team-border {
     --rating-color-8: #f66;
     --rating-color-9a: #ccc;
     --rating-color-9b: #f66;
+
+    --bucket-gold: #e0b74a;
+    --bucket-silver: #9fb3bf;
+    --bucket-bronze: #d99563;
+    --bucket-iron: #9aabb7;
   }
 
   body {

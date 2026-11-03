@@ -10,6 +10,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Python
+__pycache__/
+*.pyc
+
 # Environment files
 .env
 .env.*
@@ -19,3 +23,4 @@ pnpm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
+.playwright-cli/
