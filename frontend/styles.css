@@ -250,6 +250,7 @@ a:hover {
 }
 
 .bucket {
+  max-width: 20px;
   text-align: right;
   white-space: nowrap;
 }
