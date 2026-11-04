@@ -32,6 +32,22 @@
         <a class="page-link" href="./contests.html">比赛详情</a>
       </header>
 
+      <section class="panel content-panel calculator-panel">
+        <h2>概率计算器</h2>
+        <p class="hint">没有完整报名表时，输入队伍总数和预测名次，直接得到各奖项概率。</p>
+        <div class="calculator-form">
+          <label>
+            队伍总数
+            <input id="calcTotal" type="number" min="2" step="1" inputmode="numeric" placeholder="例如 300" />
+          </label>
+          <label>
+            预测名次
+            <input id="calcRank" type="number" min="1" step="1" inputmode="numeric" placeholder="例如 15" />
+          </label>
+        </div>
+        <div id="calcResult" class="statistic-grid calculator-result"></div>
+      </section>
+
       <section class="panel content-panel">
         <div class="panel-head">
           <div class="controls">

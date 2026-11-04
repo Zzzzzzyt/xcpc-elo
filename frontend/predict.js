@@ -18,6 +18,16 @@
     lawNote: document.getElementById("lawNote"),
   };
 
+  const calcEls = {
+    total: document.getElementById("calcTotal"),
+    rank: document.getElementById("calcRank"),
+    result: document.getElementById("calcResult"),
+    hint: document.getElementById("calcHint"),
+  };
+
+  const BUCKET_LABELS = { gold: "金", silver: "银", bronze: "铜", iron: "铁" };
+  const AWARD_LABELS = { gold: "金牌", silver: "银牌", bronze: "铜牌", iron: "无奖牌" };
+
   const config = (data && data.config) || {};
   const initialRating = Number.isFinite(config.initialRating) ? config.initialRating : 1400;
   const scale = Number.isFinite(config.eloScale) ? config.eloScale : 400;
@@ -244,6 +254,40 @@
   }
 
   /**
+   * Renders the standalone calculator from the field size and predicted rank.
+   */
+  function renderCalculator() {
+    if (!calcEls.result) return;
+    const total = Number.parseInt(calcEls.total ? calcEls.total.value : "", 10);
+    const rank = Number.parseInt(calcEls.rank ? calcEls.rank.value : "", 10);
+
+    if (!Number.isFinite(total) || !Number.isFinite(rank) || total < 2 || rank < 1) {
+      calcEls.result.innerHTML = "";
+      return;
+    }
+    if (!law) {
+      calcEls.result.innerHTML = "";
+      return;
+    }
+
+    const effectiveRank = Math.min(rank, total);
+    const percentile = (effectiveRank - 0.5) / total;
+    const buckets = core.bucketProbabilities(percentile, law);
+    const percents = core.percentBuckets(buckets);
+
+    calcEls.result.innerHTML = buckets
+      .map(
+        (bucket, index) =>
+          `<div class="statistic-card bucket-${bucket.name}">` +
+          `<span>${BUCKET_LABELS[bucket.name] || bucket.name}</span><strong>${percents[index]}%</strong></div>`,
+      )
+      .join("");
+
+    const award = core.awardForRank(effectiveRank, total);
+    const overflow = rank > total ? " 名次超过队伍总数，按最后一名计算。" : "";
+  }
+
+  /**
    * Wires file selection, drag and drop, and the download button.
    */
   function bindEvents() {
@@ -266,6 +310,9 @@
       handleFile(file);
     });
     els.download.addEventListener("click", downloadCsv);
+    for (const input of [calcEls.total, calcEls.rank]) {
+      if (input) input.addEventListener("input", renderCalculator);
+    }
   }
 
   /**
@@ -307,6 +354,7 @@
     }
     buildRatingIndex();
     renderLawNote();
+    renderCalculator();
     els.subtitle.textContent =
       `已载入 ${ratingIndex.size} 名队员的 Elo 数据; 初始分: ${initialRating}, 缩放系数: ${scale}, ` +
       `评分方式: ${aggregation}` +

@@ -304,6 +304,57 @@ a:hover {
   line-height: 1.7;
 }
 
+.calculator-panel {
+  min-height: auto;
+}
+
+.calculator-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.calculator-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.calculator-form input {
+  min-width: 160px;
+  background: var(--surface-light);
+}
+
+.calculator-result {
+  grid-template-columns: repeat(4, minmax(120px, 200px));
+  margin: 14px 0 0;
+}
+
+.calculator-result .bucket-gold strong {
+  color: var(--bucket-gold);
+}
+
+.calculator-result .bucket-silver strong {
+  color: var(--bucket-silver);
+}
+
+.calculator-result .bucket-bronze strong {
+  color: var(--bucket-bronze);
+}
+
+.calculator-result .bucket-iron strong {
+  color: var(--bucket-iron);
+}
+
+@media (max-width: 700px) {
+  .calculator-result {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 .contest-filters {
   display: grid;
   grid-template-columns: 140px 140px 1fr;

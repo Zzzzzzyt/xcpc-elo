@@ -56,6 +56,10 @@ struck through.
 
 ### Finish-band probabilities
 
+A calculator panel at the top of the page takes a field size and one predicted
+rank and returns the same four probabilities, so a single team can be estimated
+without a registration CSV.
+
 When `analysis/law.json` exists — a committed artifact written by
 `python analysis/rank_calibration.py` — the table also estimates each team's
 chance of finishing gold (top 10%), silver (10–30%), bronze (30–60%) and iron
